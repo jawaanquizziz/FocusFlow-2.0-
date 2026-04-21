@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FocusFlow</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kdam+Thmor+Pro&display=swap" rel="stylesheet">
+  
+  <style>
+    body {
+      background-color: #23272A;
+      color: #DCDDDE;
+      font-family: 'Segoe UI', sans-serif;
+      overflow-y: auto;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+    }
+    .accent { background-color: #5865F2; }
+    .accent:hover { background-color: #4752C4; }
+    .glass {
+      background: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .glow { text-shadow: 0 0 20px rgba(88, 101, 242, 0.8); }
+
+    .mode-btn {
+      color: #B9BBBE;
+      transition: all 0.2s;
+    }
+    
+    .mode-btn.active {
+      color: white;
+    }
+
+    .mode-btn.active.px-4 {
+      background-color: #5865F2;
+      color: white;
+      animation: pulseGlow 2s ease-in-out infinite;
+    }
+
+    @keyframes pulseGlow {
+      0%, 100% {
+        box-shadow: 0 0 5px rgba(88, 101, 242, 0.4);
+        border-color: #5865F2;
+      }
+      50% {
+        box-shadow: 0 0 15px rgba(88, 101, 242, 0.9);
+        border-color: #7983F5;
+      }
+    }
+
+    #timer {
+      font-size: 80px;
+      font-weight: bold;
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 0.2em;
+      user-select: none;
+    }
+    .digit {
+      position: relative;
+      width: 60px;
+      height: 85px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 70px;
+      perspective: 300px;
+      padding-top: 8px; 
+    }
+    .flip {
+      animation: flipOnce 0.4s ease-in-out forwards;
+    }
+    @keyframes flipOnce {
+      0% { transform: rotateX(0deg); }
+      50% { transform: rotateX(-90deg); opacity: 0.4; }
+      100% { transform: rotateX(0deg); opacity: 1; }
+    }
+
+    @media (max-width: 640px) {
+      body {
+        padding: 0.5rem;
+        gap: 0.75rem;
+      }
+      #timer {
+        font-size: 50px;
+        gap: 0.1em;
+      }
+      .digit {
+        width: 38px;
+        height: 55px;
+        font-size: 45px;
+        border-radius: 6px;
+      }
+      .icon-wrapper {
+        width: 44px !important;
+        height: 44px !important;
+      }
+      .icon-wrapper i {
+        font-size: 1rem !important;
+      }
+    }
+
+    #rewardPopup {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      left: 20px;
+      text-align: center;
+      background: #5865F2;
+      color: white;
+      padding: 15px;
+      border-radius: 12px;
+      box-shadow: 0 0 20px rgba(88,101,242,0.8);
+      display: none;
+      animation: slideIn 0.5s ease forwards;
+      z-index: 50;
+    }
+    @media (min-width: 768px) {
+      #rewardPopup {
+        bottom: 30px;
+        right: 30px;
+        left: auto;
+        padding: 15px 25px;
+      }
+    }
+    
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .hidden {
+      display: none;
+    }
+    
+    .font-brand {
+      font-family: 'Kdam Thmor Pro', sans-serif;
+    }
+    
+    .icon-wrapper {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid #3a3f42;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    
+    .mode-btn.active .icon-wrapper {
+      background-color: #5865F2;
+      border-color: #7983F5;
+      animation: pulseGlow 2s ease-in-out infinite;
+    }
+    
+  </style>
+</head>
+<body>
+
+  <div class="w-full px-4 pt-2 pb-4 flex flex-col sm:flex-row justify-between items-center gap-2">
+    <h1 class="font-brand text-2xl sm:text-3xl md:text-4xl font-bold text-white glow text-center sm:text-left">
+      Focus<span class="text-[#5865F2]">Flow</span>
+    </h1>
+    <div class="glass px-4 py-2 rounded-lg flex items-center gap-2">
+      <i class="fas fa-clock text-[#5865F2]"></i>
+      <span class="text-sm text-[#B9BBBE]">Total Focus:</span>
+      <span id="totalFocusTime" class="text-base font-semibold text-white">0h 0m 0s</span>
+    </div>
+  </div>
+  
+  <div class="text-center w-full px-4">
+    <div id="welcomeBox" class="hidden">
+      <h1 class="text-2xl sm:text-3xl font-bold glow">Welcome, <span id="usernameDisplay"></span></h1>
+      <button id="changeName" class="text-xs text-[#A5A6A8] underline hover:text-[#5865F2]">Change name</button>
+    </div>
+    <div id="nameInputBox" class="flex flex-col items-center space-y-2">
+      <input id="nameInput" type="text" placeholder="Enter your name..."
+        class="bg-[#2C2F33] text-white placeholder-[#7A7C80] rounded-lg px-4 py-2 focus:outline-none border border-gray-700 w-full max-w-xs text-center text-sm" />
+      <button id="saveName" class="accent px-6 py-2 rounded-lg font-semibold text-white text-sm">Save</button>
+    </div>
+  </div>
+
+  <div class="glass w-full max-w-5xl py-4 px-4 sm:px-6 rounded-xl flex flex-col items-center shadow-lg relative">
+    <button id="openSettings" class="absolute top-3 right-3 sm:right-4 text-[#B9BBBE] hover:text-white transition">
+      <i class="fas fa-cog text-lg"></i>
+    </button>
+    
+    <div class="flex flex-wrap justify-center gap-2 mb-4">
+      <button id="pomodoroMode" class="mode-btn active px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold text-xs sm:text-sm border border-[#5865F2]">Pomodoro</button>
+      <button id="shortBreakMode" class="mode-btn px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold text-xs sm:text-sm border border-transparent hover:border-gray-700">Short Break</button>
+      <button id="longBreakMode" class="mode-btn px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold text-xs sm:text-sm border border-transparent hover:border-gray-700">Long Break</button>
+      <button id="stopwatchMode" class="mode-btn px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold text-xs sm:text-sm border border-transparent hover:border-gray-700">Stopwatch</button>
+    </div>
+    
+    <div id="timer" class="mb-4">
+      <div class="digit hidden glow" id="minHundreds">0</div> 
+      <div class="digit glow" id="minTens">2</div>
+      <div class="digit glow" id="minOnes">5</div>
+      <div class="glow text-6xl sm:text-7xl font-bold -translate-y-1">:</div>
+      <div class="digit glow" id="secTens">0</div>
+      <div class="digit glow" id="secOnes">0</div>
+    </div>
+    
+    <div class="flex gap-3">
+      <button id="startStopBtn" class="accent px-8 sm:px-10 py-2 rounded-lg font-semibold text-white text-base sm:text-lg">START</button>
+      <button id="resetBtn" class="px-4 sm:px-6 py-2 rounded-lg border border-gray-700 text-[#B9BBBE] font-semibold text-sm hover:bg-[#2C2F33] flex items-center justify-center">
+        <i class="fas fa-redo"></i>
+      </button>
+    </div>
+  </div>
+
+  <div class="flex flex-col lg:flex-row justify-center items-start gap-4 sm:gap-6 w-full max-w-5xl">
+
+    <div class="glass p-4 sm:p-6 rounded-xl shadow-lg min-h-[250px] sm:min-h-[300px] w-full lg:w-1/2 flex flex-col">
+      <h2 class="text-base sm:text-lg font-semibold mb-3 text-[#B9BBBE] text-center">To-Do List</h2>
+      <div class="flex mb-3 shrink-0">
+        <input id="todoInput" type="text" placeholder="Task..."
+          class="flex-1 bg-[#2C2F33] text-white placeholder-[#7A7C80] rounded-l-lg px-3 py-2 focus:outline-none border border-gray-700 text-sm" />
+        <button id="addTodo" class="accent px-4 py-2 rounded-r-lg font-semibold text-white text-sm">Add</button>
+      </div>
+      <ul id="todoList" class="text-[#DCDDDE] text-sm overflow-y-auto flex-1 pr-2"></ul>
+    </div>
+
+    <div class="glass p-4 sm:p-6 rounded-xl shadow-lg min-h-[250px] sm:min-h-[300px] w-full lg:w-1/2 flex flex-col">
+      <h2 class="text-base sm:text-lg font-semibold mb-3 text-[#B9BBBE] text-center">Ambient Sounds</h2>
+      
+      <div class="flex flex-1 items-center justify-around px-2">
+        
+        <div id="rainBtn" class="mode-btn rounded-lg flex flex-col items-center justify-center cursor-pointer">
+          <div class="icon-wrapper">
+            <i class="fas fa-cloud-rain text-xl"></i>
+          </div>
+          <span class="text-xs mt-2 hidden sm:block">Rain</span>
+        </div>
+        <div id="fireBtn" class="mode-btn rounded-lg flex flex-col items-center justify-center cursor-pointer">
+          <div class="icon-wrapper">
+            <i class="fas fa-fire text-xl"></i>
+          </div>
+          <span class="text-xs mt-2 hidden sm:block">Fire</span>
+        </div>
+        <div id="forestBtn" class="mode-btn rounded-lg flex flex-col items-center justify-center cursor-pointer">
+          <div class="icon-wrapper">
+            <i class="fas fa-tree text-xl"></i>
+          </div>
+          <span class="text-xs mt-2 hidden sm:block">Forest</span>
+        </div>
+        <div id="cafeBtn" class="mode-btn rounded-lg flex flex-col items-center justify-center cursor-pointer">
+          <div class="icon-wrapper">
+            <i class="fas fa-coffee text-xl"></i>
+          </div>
+          <span class="text-xs mt-2 hidden sm:block">Cafe</span>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+<!-- ⭐ MORE APPS SECTION -->
+<div class="w-full max-w-5xl glass p-4 rounded-xl mb-4">
+  <h2 class="text-lg font-semibold mb-3 text-center text-[#B9BBBE]">More Apps</h2>
+  
+  <div class="flex flex-wrap justify-center gap-4">
+
+    <!-- Timetable Button -->
+    <a href="timetable.html" 
+       class="bg-[#5865F2] hover:bg-[#4752C4] text-white px-5 py-3 rounded-xl font-semibold shadow-lg flex items-center gap-2">
+       <i class="fas fa-calendar-alt text-white text-lg"></i> Timetable Planner
+    </a>
+
+    
+    <!-- Placeholder for future apps -->
+
+    <a href="progress.html"
+    <button class="bg-[#5865F2] hover:bg-[#4752C4] text-white px-5 py-3 rounded-xl font-semibold shadow-lg flex items-center gap-2"></button>
+      <i class="fas fa-chart-line"></i> Progress Tracker
+    </a>
+    </button>
+
+  </div>
+</div>
+
+  <footer class="text-[#8E9297] text-xs text-center mt-4 mb-2">Made with 💜 by Alison Pinto & Jawaan</footer>
+
+  <div id="rewardPopup"></div>
+
+  <div id="settingsModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div class="glass bg-[#2C2F33] p-6 rounded-xl w-full max-w-sm shadow-2xl flex flex-col">
+      <h2 class="text-lg font-semibold mb-4 text-white">Timer Settings</h2>
+
+      <label class="text-sm text-[#B9BBBE]">Pomodoro (minutes)</label>
+      <input id="pomodoroTime" type="number" class="bg-[#3a3f42] text-white rounded p-2 mb-3 focus:outline-none" value="25">
+
+      <label class="text-sm text-[#B9BBBE]">Short Break (minutes)</label>
+      <input id="shortBreakTime" type="number" class="bg-[#3a3f42] text-white rounded p-2 mb-3 focus:outline-none" value="5">
+
+      <label class="text-sm text-[#B9BBBE]">Long Break (minutes)</label>
+      <input id="longBreakTime" type="number" class="bg-[#3a3f42] text-white rounded p-2 mb-3 focus:outline-none" value="15">
+
+      <div class="flex gap-2 mt-2">
+        <button id="saveSettings" class="accent flex-1 px-4 py-2 rounded-lg font-semibold text-white text-sm">Save</button>
+        <button id="closeSettings" class="flex-1 px-4 py-2 rounded-lg border border-gray-700 text-[#B9BBBE] font-semibold text-sm hover:bg-[#3a3f42]">Close</button>
+      </div>
+    </div>
+  </div>
+  
+
+  <audio id="rainSound" src="audio/rain.wav" loop></audio>
+  <audio id="fireSound" src="audio/fire.wav" loop></audio>
+  <audio id="forestSound" src="audio/forest.wav" loop></audio>
+  <audio id="cafeSound" src="audio/cafe.mp3" loop></audio>
+
+  <audio id="alarmSound" src="https://assets.mixkit.co/sfx/preview/mixkit-typewriter-soft-keys-1110.mp3" preload="auto"></audio>
+
+  <script>
+    // === USER NAME ===
+    const welcomeBox = document.getElementById("welcomeBox");
+    const nameInputBox = document.getElementById("nameInputBox");
+    const nameInput = document.getElementById("nameInput");
+    const usernameDisplay = document.getElementById("usernameDisplay");
+    const saveName = document.getElementById("saveName");
+    const changeName = document.getElementById("changeName");
+    let username = localStorage.getItem("username");
+
+    function showWelcome() {
+      if (username) {
+        usernameDisplay.textContent = username;
+        welcomeBox.classList.remove("hidden");
+        nameInputBox.classList.add("hidden");
+      } else {
+        welcomeBox.classList.add("hidden");
+        nameInputBox.classList.remove("hidden");
+      }
+    }
+    saveName.addEventListener("click", () => {
+      const val = nameInput.value.trim();
+      if (!val) return;
+      username = val;
+      localStorage.setItem("username", username);
+      showWelcome();
+    });
+    changeName.addEventListener("click", () => {
+      localStorage.removeItem("username");
+      username = null;
+      showWelcome();
+    });
+    showWelcome();
+
+    // === TIMER ===
+    const startStopBtn = document.getElementById("startStopBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const pomodoroMode = document.getElementById("pomodoroMode");
+    const shortBreakMode = document.getElementById("shortBreakMode");
+    const longBreakMode = document.getElementById("longBreakMode");
+    const stopwatchMode = document.getElementById("stopwatchMode");
+    const modeButtons = [pomodoroMode, shortBreakMode, longBreakMode, stopwatchMode];
+    const alarmSound = document.getElementById("alarmSound");
+
+    const digits = {
+      minHundreds: document.getElementById("minHundreds"),
+      minTens: document.getElementById("minTens"),
+      minOnes: document.getElementById("minOnes"),
+      secTens: document.getElementById("secTens"),
+      secOnes: document.getElementById("secOnes"),
+    };
+
+    const pomodoroInput = document.getElementById("pomodoroTime");
+    const shortInput = document.getElementById("shortBreakTime");
+    const longInput = document.getElementById("longBreakTime");
+    const openSettings = document.getElementById("openSettings");
+    const closeSettings = document.getElementById("closeSettings");
+    const saveSettings = document.getElementById("saveSettings");
+    const settingsModal = document.getElementById("settingsModal");
+
+    let timerInterval = null;
+    let currentMode = "pomodoro";
+    let timerSettings = {
+      pomodoro: Number(localStorage.getItem("pomodoroTime")) || 25 * 60,
+      shortBreak: Number(localStorage.getItem("shortBreakTime")) || 5 * 60,
+      longBreak: Number(localStorage.getItem("longBreakTime")) || 15 * 60,
+      stopwatch: 0,
+    };
+    let timeLeft = timerSettings.pomodoro;
+    let isRunning = false;
+    let totalFocusSeconds = parseInt(localStorage.getItem("focusSeconds") || "0");
+    let startTime = null;
+    let pausedTime = 0;
+
+    function formatDigits(seconds) {
+      const m = String(Math.floor(seconds / 60)).padStart(3, "0");
+      const s = String(seconds % 60).padStart(2, "0");
+      return [...m + s];
+    }
+
+    function updateDisplay() {
+      const [mH, mT, mO, sT, sO] = formatDigits(timeLeft);
+      const newVals = { minHundreds: mH, minTens: mT, minOnes: mO, secTens: sT, secOnes: sO };
+
+      if (mH === '0') {
+        digits.minHundreds.classList.add('hidden');
+      } else {
+        digits.minHundreds.classList.remove('hidden');
+      }
+
+      for (const key in digits) {
+        if (digits[key].textContent !== newVals[key]) {
+          digits[key].textContent = newVals[key];
+          digits[key].classList.remove("flip");
+          void digits[key].offsetWidth;
+          digits[key].classList.add("flip");
+        }
+      }
+    }
+
+    function updateFocusTimeDisplay() {
+      const hours = Math.floor(totalFocusSeconds / 3600);
+      const minutes = Math.floor((totalFocusSeconds % 3600) / 60);
+      const seconds = totalFocusSeconds % 60;
+      document.getElementById("totalFocusTime").textContent = `${hours}h ${minutes}m ${seconds}s`;
+    }
+
+    function stopTimer(completed = false) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+      isRunning = false;
+      startStopBtn.textContent = "START";
+      pausedTime = timeLeft;
+      localStorage.setItem("focusSeconds", totalFocusSeconds);
+    }
+
+    function startTimer() {
+      isRunning = true;
+      startStopBtn.textContent = "PAUSE";
+      startTime = Date.now();
+      const initialTime = pausedTime || timeLeft;
+
+      if (currentMode === 'stopwatch') {
+        timerInterval = setInterval(() => {
+          const elapsed = Math.floor((Date.now() - startTime) / 1000);
+          timeLeft = initialTime + elapsed;
+          updateDisplay();
+
+          // Increment focus time during stopwatch mode
+          totalFocusSeconds++;
+          updateFocusTimeDisplay();
+          checkRewards();
+          localStorage.setItem("focusSeconds", totalFocusSeconds);
+        }, 1000);
+      } else { // Pomodoro and breaks
+        timerInterval = setInterval(() => {
+          const elapsed = Math.floor((Date.now() - startTime) / 1000);
+          timeLeft = initialTime - elapsed;
+          
+          if (timeLeft < 0) timeLeft = 0;
+          updateDisplay();
+          
+          if (currentMode === "pomodoro") {
+            totalFocusSeconds++;
+            updateFocusTimeDisplay();
+            checkRewards();
+            localStorage.setItem("focusSeconds", totalFocusSeconds);
+          }
+          
+          if (timeLeft <= 0) {
+            stopTimer(true);
+            alarmSound.play();
+            switchMode(currentMode === "pomodoro" ? "shortBreak" : "pomodoro");
+          }
+        }, 1000);
+      }
+    }
+
+    function switchMode(mode) {
+      stopTimer();
+      currentMode = mode;
+      timeLeft = timerSettings[mode];
+      pausedTime = timeLeft;
+      modeButtons.forEach(btn => {
+        const isActive = btn.id.includes(mode);
+        btn.classList.toggle("active", isActive);
+        // Use transparent border for non-active buttons to prevent layout shift
+        btn.style.borderColor = isActive ? '#5865F2' : 'transparent';
+      });
+      updateDisplay();
+    }
+
+    openSettings.addEventListener("click", () => {
+      settingsModal.classList.remove("hidden");
+    });
+    closeSettings.addEventListener("click", () => settingsModal.classList.add("hidden"));
+    saveSettings.addEventListener("click", () => {
+      timerSettings.pomodoro = Number(pomodoroInput.value) * 60;
+      timerSettings.shortBreak = Number(shortInput.value) * 60;
+      timerSettings.longBreak = Number(longInput.value) * 60;
+
+      localStorage.setItem("pomodoroTime", timerSettings.pomodoro);
+      localStorage.setItem("shortBreakTime", timerSettings.shortBreak);
+      localStorage.setItem("longBreakTime", timerSettings.longBreak);
+
+      if (!isRunning) {
+        timeLeft = timerSettings[currentMode];
+        updateDisplay();
+      }
+      settingsModal.classList.add("hidden");
+    });
+
+    startStopBtn.addEventListener("click", () => (isRunning ? stopTimer() : startTimer()));
+    resetBtn.addEventListener("click", () => { 
+      stopTimer(); 
+      timeLeft = timerSettings[currentMode]; 
+      pausedTime = 0; // Reset paused time to ensure timer starts fresh
+      updateDisplay(); 
+    });
+    pomodoroMode.addEventListener("click", () => switchMode("pomodoro"));
+    shortBreakMode.addEventListener("click", () => switchMode("shortBreak"));
+    longBreakMode.addEventListener("click", () => switchMode("longBreak"));
+    stopwatchMode.addEventListener("click", () => switchMode("stopwatch"));
+    updateDisplay();
+    updateFocusTimeDisplay();
+
+    // === REWARD SYSTEM ===
+    const rewardPopup = document.getElementById("rewardPopup");
+    const rewardMilestones = [
+        { id: 1, seconds: 3600, label: "1 hour" },
+        { id: 2, seconds: 7200, label: "2 hours" },
+        { id: 3, seconds: 10800, label: "3 hours" },
+        { id: 4, seconds: 14400, label: "4 hours" },
+        { id: 5, seconds: 18000, label: "5 hours" },
+        { id: 6, seconds: 21600, label: "6 hours" },
+        { id: 7, seconds: 25200, label: "7 hours" },
+        { id: 8, seconds: 28800, label: "8 hours" },
+        { id: 9, seconds: 32400, label: "9 hours" },
+        { id: 10, seconds: 36000, label: "10 hours" }
+    ];
+    let achievedRewards = JSON.parse(localStorage.getItem("achievedRewards") || "[]");
+    let lastCheckedHour = Math.floor(totalFocusSeconds / 3600);
+
+    function checkRewards() {
+      const currentHour = Math.floor(totalFocusSeconds / 3600);
+      
+      // Only check when we cross into a new hour
+      if (currentHour > lastCheckedHour) {
+        for (const milestone of rewardMilestones) {
+          if (totalFocusSeconds >= milestone.seconds && !achievedRewards.includes(milestone.id)) {
+            showRewardPopup(`🎉 Congrats ${username || "User"}! You focused for ${milestone.label}!`);
+            achievedRewards.push(milestone.id);
+            localStorage.setItem("achievedRewards", JSON.stringify(achievedRewards));
+            break; // Only show one reward at a time
+          }
+        }
+        lastCheckedHour = currentHour;
+      }
+    }
+    
+    function showRewardPopup(msg) {
+      rewardPopup.textContent = msg;
+      rewardPopup.style.display = "block";
+      setTimeout(() => { rewardPopup.style.display = "none"; }, 4000);
+    }
+
+    // === AMBIENT SOUNDS ===
+    const sounds = {
+        rain: {
+            btn: document.getElementById('rainBtn'),
+            audio: document.getElementById('rainSound')
+        },
+        fire: {
+            btn: document.getElementById('fireBtn'),
+            audio: document.getElementById('fireSound')
+        },
+        forest: {
+            btn: document.getElementById('forestBtn'),
+            audio: document.getElementById('forestSound')
+        },
+        cafe: {
+            btn: document.getElementById('cafeBtn'),
+            audio: document.getElementById('cafeSound')
+        }
+    };
+
+    function toggleSound(sound) {
+        for (const key in sounds) {
+            if (sounds[key] !== sound) {
+                sounds[key].audio.pause();
+                sounds[key].btn.classList.remove('active');
+            }
+        }
+        
+        if (sound.audio.paused) {
+            sound.audio.play();
+            sound.btn.classList.add('active');
+        } else {
+            sound.audio.pause();
+            sound.btn.classList.remove('active');
+        }
+    }
+
+    sounds.rain.btn.addEventListener('click', () => toggleSound(sounds.rain));
+    sounds.fire.btn.addEventListener('click', () => toggleSound(sounds.fire));
+    sounds.forest.btn.addEventListener('click', () => toggleSound(sounds.forest));
+    sounds.cafe.btn.addEventListener("click", () => toggleSound(sounds.cafe));
+
+    // === TO-DO ===
+    const todoInput = document.getElementById("todoInput");
+    const addTodo = document.getElementById("addTodo");
+    const todoList = document.getElementById("todoList");
+    let todos = JSON.parse(localStorage.getItem("todos") || "[]");
+    
+    function renderTodos() {
+      todoList.innerHTML = todos.length
+        ? todos.map((t, i) => `
+            <li class="flex items-center group border-b border-gray-700/50 py-2.5 px-1 cursor-pointer" onclick="toggleDone(${i})">
+              <div class="flex-shrink-0 w-5 h-5 rounded-full border-2 ${t.done ? 'border-[#5865F2] bg-[#5865F2]' : 'border-gray-600'} flex items-center justify-center mr-3 transition-all">
+                  ${t.done ? '<i class="fas fa-check text-white text-[10px]"></i>' : ''}
+              </div>
+              <span class="flex-1 ${t.done ? 'line-through text-gray-500' : ''} transition-colors">${t.text}</span>
+              <button onclick="event.stopPropagation(); deleteTodo(${i});" class="text-gray-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                  <i class="fas fa-trash-alt"></i>
+              </button>
+            </li>`).join("")
+        : '<li class="italic opacity-60 text-center text-xs">No tasks yet...</li>';
+      localStorage.setItem("todos", JSON.stringify(todos));
+    }
+    
+    addTodo.addEventListener("click", () => {
+      const text = todoInput.value.trim();
+      if (!text) return;
+      todos.push({ text, done: false });
+      todoInput.value = "";
+      renderTodos();
+    });
+    
+    todoInput.addEventListener("keypress", (e) => { if (e.key === "Enter") addTodo.click(); });
+    window.toggleDone = i => { todos[i].done = !todos[i].done; renderTodos(); };
+    window.deleteTodo = i => { todos.splice(i, 1); renderTodos(); };
+    
+    renderTodos();
+  </script>
+</body>
+</html>

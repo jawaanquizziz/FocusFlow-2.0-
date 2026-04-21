@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>FocusFlow – Weekly Progress Dashboard</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Kdam+Thmor+Pro&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --bg:#23272A;
+    --glass: rgba(255,255,255,0.03);
+    --accent:#5865F2;
+    --muted:#8E9297;
+  }
+  body{
+    background:var(--bg);
+    color:#DCDDDE;
+    font-family: "Segoe UI", sans-serif;
+    padding:1rem;
+    min-height:100vh;
+  }
+  .glass{
+    background: var(--glass);
+    border:1px solid rgba(255,255,255,0.06);
+    backdrop-filter: blur(10px);
+  }
+  .font-brand{font-family:"Kdam Thmor Pro",sans-serif;}
+  .accent{background:var(--accent);}.accent:hover{background:#4752C4;}
+  canvas { display:block; }
+
+  /* small helpful styles */
+  .small-muted { color:var(--muted); font-size:13px; }
+  .pill { padding:6px 10px; border-radius:999px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.04); }
+
+  /* tabs */
+  .tabs { display:flex; gap:8px; margin-bottom:12px; }
+  .tab { padding:8px 14px; border-radius:10px; background:transparent; border:1px solid rgba(255,255,255,0.03); cursor:pointer; color:var(--muted); }
+  .tab.active { background:var(--accent); color:white; box-shadow: 0 6px 20px rgba(88,101,242,0.08); }
+
+  .legend-color { width:12px;height:12px;border-radius:3px;display:inline-block;margin-right:8px; }
+
+  /* small responsive */
+  @media (max-width:900px){
+    .w-80 { width:100% !important; }
+    .lg\\:col-span-2 { grid-column: 1 / -1; }
+  }
+
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="w-full px-4 pt-2 pb-4 flex flex-col sm:flex-row justify-between items-center gap-2">
+  <h1 class="font-brand text-3xl md:text-4xl font-bold text-white">
+    Focus<span style="color:#5865F2">Flow</span>
+  </h1>
+  <a href="index.html" class="px-4 py-2 bg-[#5865F2] hover:bg-[#4752C4] text-white rounded-lg text-sm font-semibold">
+  <i class="fas fa-arrow-left"></i> Back to Pomodoro
+</a>
+
+  <div class="glass px-4 py-2 rounded-lg flex items-center gap-3">
+    <i class="fas fa-chart-column text-[#5865F2]"></i>
+    <div class="text-sm small-muted">Progress Dashboard</div>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="max-w-6xl mx-auto mb-4">
+  <div class="tabs">
+    <div id="tabDay" class="tab active">Day</div>
+    <div id="tabWeek" class="tab">Week</div>
+    <div id="tabMonth" class="tab">Month</div>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+  <!-- Left: controls & week selector -->
+  <div class="lg:col-span-1 glass rounded-2xl p-5 shadow">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <h2 class="text-lg font-semibold">Range Controls</h2>
+        <div class="small-muted">Switch view & export data</div>
+      </div>
+      <div class="flex gap-2">
+        <button id="prevRange" class="px-3 py-1 rounded-md glass hover:bg-gray-700"><i class="fas fa-chevron-left"></i></button>
+        <button id="nextRange" class="px-3 py-1 rounded-md glass hover:bg-gray-700"><i class="fas fa-chevron-right"></i></button>
+      </div>
+    </div>
+
+    <div class="glass p-3 rounded-lg mb-4">
+      <div id="rangeLabel" class="font-semibold text-center text-white">Today</div>
+      <div class="text-center small-muted mt-1" id="rangeSubLabel">—</div>
+    </div>
+
+    <h3 class="font-semibold mb-2">Manual Entry (optional)</h3>
+    <div class="space-y-2">
+      <label class="small-muted">Date</label>
+      <input id="entryDate" type="date" class="w-full bg-[#2C2F33] text-white p-2 rounded border border-gray-700">
+
+      <label class="small-muted">Hours</label>
+      <input id="entryHours" type="number" min="0" step="0.25" class="w-full bg-[#2C2F33] text-white p-2 rounded border border-gray-700" placeholder="e.g. 2.5">
+
+      <label class="small-muted">Subject</label>
+      <input id="entrySubject" type="text" class="w-full bg-[#2C2F33] text-white p-2 rounded border border-gray-700" placeholder="e.g. Revision">
+
+      <div class="flex gap-2 mt-2">
+        <button id="addManual" class="accent px-4 py-2 rounded text-white font-semibold">Add</button>
+        <button id="clearManual" class="glass px-3 py-2 rounded text-sm">Clear</button>
+      </div>
+    </div>
+
+    <hr class="my-4 border-gray-700">
+
+    <div class="flex flex-col gap-2">
+      <div class="flex items-center justify-between small-muted">
+        <div>Total (selected)</div>
+        <div id="totalSelected" class="font-semibold">0 h</div>
+      </div>
+      <div class="flex items-center justify-between small-muted">
+        <div>Pomodoro (selected)</div>
+        <div id="pomoSelected" class="font-semibold">0 h</div>
+      </div>
+      <div class="flex items-center justify-between small-muted">
+        <div>Timetable (selected)</div>
+        <div id="tableSelected" class="font-semibold">0 h</div>
+      </div>
+
+      <div class="flex gap-2 mt-3">
+        <button id="exportCSV" class="px-3 py-2 bg-[#2f3136] rounded text-sm">Export CSV</button>
+        <button id="clearRange" class="px-3 py-2 glass rounded text-sm">Clear Range</button>
+      </div>
+    </div>
+
+    <hr class="my-4 border-gray-700">
+
+    <div class="flex items-center gap-2">
+      <input id="enablePomoLogging" type="checkbox" />
+      <label class="small-muted">Enable logging of Pomodoro deltas (records increases while this page is open)</label>
+    </div>
+    <div class="text-xs small-muted mt-1">If your Pomodoro currently stores only cumulative seconds (`focusSeconds`), enabling logging will record future deltas so Day/Week/Month breakdowns are available.</div>
+  </div>
+
+  <!-- Middle: charts -->
+  <div class="lg:col-span-2 glass rounded-2xl p-6 shadow">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="text-xl font-semibold" id="mainChartTitle">Day Overview</h2>
+        <div class="small-muted" id="mainChartSubtitle">Today</div>
+      </div>
+      <div class="pill small-muted">Auto data: Pomodoro + Timetable + Manual</div>
+    </div>
+
+    <div class="flex flex-col lg:flex-row gap-6">
+      <div class="flex-1">
+        <canvas id="pieChart" width="600" height="360" class="w-full bg-transparent"></canvas>
+        <div class="flex items-center justify-between mt-2 small-muted">
+          <div id="pieHint">Breakdown by source</div>
+          <div id="pieTotal" class="font-semibold"></div>
+        </div>
+      </div>
+
+      <div class="w-80">
+        <h3 class="font-semibold mb-2">Details</h3>
+        <div id="subjectList" class="mt-2 small-muted"></div>
+        <hr class="my-3 border-gray-700">
+        <h4 class="font-semibold mb-2">Pomodoro Log (recent)</h4>
+        <div id="pomoList" class="max-h-36 overflow-auto small-muted"></div>
+      </div>
+    </div>
+
+    <hr class="my-4 border-gray-700">
+
+    <h3 class="font-semibold mb-2">Entries in range</h3>
+    <div id="entriesList" class="space-y-2 max-h-36 overflow-auto pr-2"></div>
+  </div>
+</div>
+
+<!-- small footer -->
+<div class="max-w-6xl mx-auto mt-6 text-center small-muted">
+  Made with 💜 by Alison & Jawaan
+</div>
+
+<script>
+/* ---------------- Utilities ---------------- */
+function isoDate(d){ return d.toISOString().slice(0,10); }
+function startOfWeek(date){ const d=new Date(date); const day=(d.getDay()+6)%7; d.setDate(d.getDate()-day); d.setHours(0,0,0,0); return d; }
+function endOfWeek(date){ const s=startOfWeek(date); const e=new Date(s); e.setDate(e.getDate()+6); e.setHours(23,59,59,999); return e; }
+function startOfMonth(date){ const d=new Date(date); d.setDate(1); d.setHours(0,0,0,0); return d; }
+function endOfMonth(date){ const d=new Date(date); d.setMonth(d.getMonth()+1); d.setDate(0); d.setHours(23,59,59,999); return d; }
+function addDays(d,n){ const r=new Date(d); r.setDate(r.getDate()+n); return r; }
+function toLocalDateString(d){ return d.toLocaleDateString(); }
+
+/* ---------------- Storage keys --------------- */
+const POMO_TOTAL_KEY = 'focusSeconds';      // from index.html (cumulative)
+const POMO_LOG_KEY = 'ff_pomo_log';         // we store {ts, deltaSeconds}
+const TIMETABLE_KEY = 'timetableData';      // from timetable.html
+const MANUAL_KEY = 'ff_progress_entries';   // manual entries (existing) - array of {id,date,hours,subject}
+
+/* ---------------- DOM ---------------- */
+const tabs = { day: document.getElementById('tabDay'), week: document.getElementById('tabWeek'), month: document.getElementById('tabMonth') };
+const prevRange = document.getElementById('prevRange'), nextRange = document.getElementById('nextRange');
+const rangeLabel = document.getElementById('rangeLabel'), rangeSubLabel = document.getElementById('rangeSubLabel');
+const mainChartTitle = document.getElementById('mainChartTitle'), mainChartSubtitle = document.getElementById('mainChartSubtitle');
+
+const entryDate = document.getElementById('entryDate'), entryHours = document.getElementById('entryHours'), entrySubject = document.getElementById('entrySubject');
+const addManual = document.getElementById('addManual'), clearManual = document.getElementById('clearManual');
+const exportCSV = document.getElementById('exportCSV'), clearRange = document.getElementById('clearRange');
+
+const totalSelected = document.getElementById('totalSelected'), pomoSelected = document.getElementById('pomoSelected'), tableSelected = document.getElementById('tableSelected');
+
+const enablePomoLogging = document.getElementById('enablePomoLogging');
+
+const pieCanvas = document.getElementById('pieChart');
+const subjectList = document.getElementById('subjectList');
+const entriesList = document.getElementById('entriesList');
+const pomoList = document.getElementById('pomoList');
+const pieTotal = document.getElementById('pieTotal');
+
+/* ---------------- State ---------------- */
+let view = 'day'; // day | week | month
+let baseDate = new Date(); // determines which day/week/month is selected (today by default)
+let pollInterval = null;
+let lastSeenFocusSeconds = Number(localStorage.getItem(POMO_TOTAL_KEY) || 0);
+let pomoLog = JSON.parse(localStorage.getItem(POMO_LOG_KEY) || '[]'); // array of {ts, delta}
+
+/* ---------------- Manual entries ---------------- */
+function loadManual(){ return JSON.parse(localStorage.getItem(MANUAL_KEY) || '[]'); }
+function saveManual(arr){ localStorage.setItem(MANUAL_KEY, JSON.stringify(arr)); }
+
+/* ---------------- Timetable read & parse ----------------
+Expect timetableData stored as object:
+{
+  "2025-11-01": [ { start: "08:00 AM", end: "10:00 AM", task: "..." }, ... ],
+  ...
+}
+We parse start/end times to compute duration in hours.
+*/
+function loadTimetable(){ try { return JSON.parse(localStorage.getItem(TIMETABLE_KEY) || '{}'); } catch(e){ return {}; } }
+
+/* ---------------- Time parsing helpers ---------------- */
+function parseTimeStringToMinutes(timeStr){
+  // accepts formats:
+  // "HH:MM AM", "H AM", "HH:MM", "H:MMPM", "10 AM", "10:30 PM"
+  if(!timeStr || typeof timeStr !== 'string') return null;
+  const s = timeStr.trim();
+  // handle 24h "HH:MM" without AM/PM
+  const ampmMatch = s.match(/(am|pm|AM|PM|A\.M\.|P\.M\.)$/);
+  let hh=0, mm=0, pm=false;
+  if(ampmMatch){
+    const parts = s.replace(/[\.]/g,'').split(/\s+/);
+    // last token is AM/PM
+    const ap = parts[parts.length-1].toUpperCase().replace(/\./g,'');
+    pm = ap.startsWith('P');
+    const timePart = parts.slice(0, parts.length-1).join(' ');
+    const t = timePart.split(':');
+    hh = Number(t[0]) || 0; mm = Number(t[1]||0);
+  } else {
+    const t = s.split(':');
+    hh = Number(t[0]) || 0; mm = Number(t[1]||0);
+  }
+  if(hh === 12 && !pm && ampmMatch) hh = 0; // 12 AM -> 0
+  if(pm && hh < 12) hh += 12;
+  return hh*60 + mm;
+}
+
+function durationHoursFromRangeString(rangeStr){
+  // Accepts "10:00 AM — 12:30 PM" or "10 AM - 12 PM" or "10:00-12:30"
+  if(!rangeStr || typeof rangeStr !== 'string') return 0;
+  // split on dash or em-dash
+  const parts = rangeStr.split(/[-–—]/).map(p => p.trim()).filter(Boolean);
+  if(parts.length < 2) return 0;
+  const start = parseTimeStringToMinutes(parts[0]);
+  const end = parseTimeStringToMinutes(parts[1]);
+  if(start==null || end==null) return 0;
+  let diff = end - start;
+  if(diff < 0) diff += 24*60; // cross-midnight
+  return diff / 60;
+}
+
+function computeTimetableTotalsInRange(startDateObj, endDateObj){
+  // returns { totalHours, bySubject: {subject: hours}, byDate: {iso: hours} }
+  const tt = loadTimetable();
+  const bySubject = {};
+  const byDate = {};
+  let total = 0;
+  for(const iso in tt){
+    const dateObj = new Date(iso + 'T00:00:00');
+    if(dateObj >= startDateObj && dateObj <= endDateObj){
+      const arr = tt[iso] || [];
+      let dateSum = 0;
+      for(const item of arr){
+        let hrs = 0;
+        if(item.start !== undefined && item.end !== undefined){
+          const sMin = parseTimeStringToMinutes(item.start);
+          const eMin = parseTimeStringToMinutes(item.end);
+          if(sMin!=null && eMin!=null){
+            let diff = eMin - sMin;
+            if(diff < 0) diff += 24*60;
+            hrs = diff/60;
+          } else {
+            hrs = 0;
+          }
+        } else if(item.time){
+          hrs = durationHoursFromRangeString(item.time);
+        }
+        if(hrs > 0){
+          dateSum += hrs;
+          const subj = item.task || 'Timetable';
+          bySubject[subj] = (bySubject[subj] || 0) + hrs;
+          total += hrs;
+        }
+      }
+      byDate[iso] = dateSum;
+    }
+  }
+  return { totalHours: total, bySubject, byDate };
+}
+
+/* ---------------- Pomodoro log helpers ---------------- */
+function savePomoLog(){ localStorage.setItem(POMO_LOG_KEY, JSON.stringify(pomoLog)); }
+
+function recordPomoDelta(deltaSeconds){
+  if(!deltaSeconds || deltaSeconds <= 0) return;
+  const now = Date.now();
+  pomoLog.push({ ts: now, delta: Number(deltaSeconds) });
+  // keep log size reasonable (keep last 500)
+  if(pomoLog.length > 1000) pomoLog = pomoLog.slice(-500);
+  savePomoLog();
+}
+
+function aggregatePomoInRange(startDateObj, endDateObj){
+  // sum deltas whose ts falls between start and end
+  let totalSec = 0;
+  for(const s of pomoLog){
+    const t = new Date(s.ts);
+    if(t >= startDateObj && t <= endDateObj){
+      totalSec += Number(s.delta);
+    }
+  }
+  return totalSec / 3600; // hours
+}
+
+/* ---------------- Manual entries helpers ---------------- */
+function aggregateManualInRange(startDateObj, endDateObj){
+  const arr = loadManual();
+  const bySubject = {};
+  let total = 0;
+  const byDate = {};
+  for(const e of arr){
+    const d = new Date(e.date + 'T00:00:00');
+    if(d >= startDateObj && d <= endDateObj){
+      total += Number(e.hours);
+      bySubject[e.subject] = (bySubject[e.subject] || 0) + Number(e.hours);
+      byDate[e.date] = (byDate[e.date] || 0) + Number(e.hours);
+    }
+  }
+  return { total, bySubject, byDate };
+}
+
+/* ---------------- Aggregate overall for the current view ---------------- */
+function computeForView(){
+  const now = new Date(baseDate);
+  let start, end, label, subLabel;
+  if(view === 'day'){
+    start = new Date(now); start.setHours(0,0,0,0);
+    end = new Date(now); end.setHours(23,59,59,999);
+    label = 'Day Overview'; subLabel = toLocalDateString(start);
+  } else if(view === 'week'){
+    start = startOfWeek(now);
+    end = endOfWeek(now);
+    label = 'Week Overview';
+    subLabel = `${toLocalDateString(start)} — ${toLocalDateString(end)}`;
+  } else { // month
+    start = startOfMonth(now);
+    end = endOfMonth(now);
+    label = 'Month Overview';
+    subLabel = `${toLocalDateString(start)} — ${toLocalDateString(end)}`;
+  }
+
+  // Pomodoro hours in range
+  const pomoHours = aggregatePomoInRange(start, end);
+
+  // Timetable hours in range
+  const tt = computeTimetableTotalsInRange(start, end);
+
+  // Manual
+  const man = aggregateManualInRange(start, end);
+
+  // Build subjectTotals: combine Pomodoro as a distinct subject, Timetable aggregated by subject, manual subjects
+  const subjectTotals = {};
+
+  if(pomoHours > 0) subjectTotals['Pomodoro Focus'] = (subjectTotals['Pomodoro Focus'] || 0) + pomoHours;
+  // integrate timetable subject totals, but rename empty tasks to 'Timetable'
+  for(const k in tt.bySubject){
+    const name = k && k.trim() ? k.trim() : 'Timetable';
+    subjectTotals[name] = (subjectTotals[name] || 0) + tt.bySubject[k];
+  }
+  // manual
+  for(const k in man.bySubject){
+    const name = k && k.trim() ? k.trim() : 'Manual';
+    subjectTotals[name] = (subjectTotals[name] || 0) + man.bySubject[k];
+  }
+
+  // totals by source (for the left-side summary)
+  const totalHours = Object.values(subjectTotals).reduce((a,b)=>a+(Number(b)||0),0);
+  const ttHours = tt.totalHours;
+  const manualHours = man.total;
+  return { start, end, label, subLabel, subjectTotals, totalHours, pomoHours, ttHours, manualHours, ttByDate: tt.byDate, manualByDate: man.byDate };
+}
+
+/* ---------------- Draw Pie Chart (adapted) ---------------- */
+function drawPie(subjectTotals){
+  const ctx = pieCanvas.getContext('2d');
+  const DPR = window.devicePixelRatio || 1;
+  const W = pieCanvas.clientWidth;
+  const H = 360;
+  pieCanvas.width = Math.floor(W*DPR);
+  pieCanvas.height = Math.floor(H*DPR);
+  pieCanvas.style.height = H + 'px';
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.scale(DPR, DPR);
+  ctx.clearRect(0,0,W,H);
+
+  const entries = Object.entries(subjectTotals).filter(([k,v]) => v>0);
+  const total = entries.reduce((a,b)=>a+b[1],0);
+  const cx = W/2, cy = H/2, r = Math.min(W/2, H/2) - 20;
+  if(total <= 0){
+    // empty state
+    ctx.fillStyle = 'rgba(255,255,255,0.03)';
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font='14px system-ui'; ctx.textAlign='center';
+    ctx.fillText('No data', cx, cy);
+    subjectList.innerHTML = '<div class="small-muted">No data in this range.</div>';
+    pieTotal.textContent = '';
+    return;
+  }
+
+  const colors = ['#6C9CFF','#7EE0C4','#FFB86B','#d6a6ff','#86FFDD','#FFD3E0','#A7C1FF','#FFD58A','#9BD3FF','#FFCCB3'];
+  let startAng = -Math.PI/2;
+  subjectList.innerHTML = '';
+  entries.forEach(([name, val], idx)=>{
+    const slice = (val/total) * Math.PI*2;
+    const endAng = startAng + slice;
+    ctx.beginPath();
+    ctx.moveTo(cx,cy);
+    ctx.arc(cx,cy,r,startAng,endAng);
+    ctx.closePath();
+    ctx.fillStyle = colors[idx % colors.length];
+    ctx.fill();
+
+    // label percent inside slice
+    const mid = (startAng + endAng)/2;
+    const lx = cx + Math.cos(mid)*(r*0.55);
+    const ly = cy + Math.sin(mid)*(r*0.55);
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.font = '12px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText(((val/total)*100).toFixed(0) + '%', lx, ly);
+
+    // legend / detail
+    const div = document.createElement('div');
+    div.className = 'flex items-center justify-between gap-3 mb-1';
+    div.innerHTML = `
+      <div class="flex items-center gap-2"><span class="legend-color" style="background:${colors[idx % colors.length]};"></span><div class="small-muted">${name}</div></div>
+      <div class="font-semibold">${Number(val).toFixed(2)} h</div>
+    `;
+    subjectList.appendChild(div);
+
+    startAng = endAng;
+  });
+
+  pieTotal.textContent = `${total.toFixed(2)} h total`;
+}
+
+/* ---------------- Render UI ---------------- */
+function renderUI(){
+  const data = computeForView();
+  rangeLabel.textContent = data.label;
+  rangeSubLabel.textContent = data.subLabel;
+  mainChartTitle.textContent = data.label;
+  mainChartSubtitle.textContent = data.subLabel;
+
+  drawPie(data.subjectTotals);
+
+  totalSelected.textContent = data.totalHours.toFixed(2) + ' h';
+  pomoSelected.textContent = data.pomoHours.toFixed(2) + ' h';
+  tableSelected.textContent = data.ttHours.toFixed(2) + ' h';
+
+  // populate entriesList: combine timetable entries and manual entries inside range
+  entriesList.innerHTML = '';
+  // timetable entries
+  const tt = loadTimetable();
+  const startIso = isoDate(data.start);
+  const endIso = isoDate(data.end);
+  // collect dates in range
+  const dates = [];
+  for(let d = new Date(data.start); d <= data.end; d = addDays(d,1)) dates.push(isoDate(d));
+  // timetable per date
+  for(const iso of dates){
+    const arr = tt[iso] || [];
+    for(const item of arr){
+      const hrs = (item.start && item.end) ? (function(){const s=parseTimeStringToMinutes(item.start); const e=parseTimeStringToMinutes(item.end); if(s==null||e==null) return 0; let diff=e-s; if(diff<0) diff+=24*60; return (diff/60).toFixed(2);}()) : durationHoursFromRangeString(item.time).toFixed(2);
+      const div = document.createElement('div');
+      div.className = 'glass p-3 rounded flex items-center justify-between';
+      div.innerHTML = `<div><div class="font-semibold">${iso} • ${item.task || 'Timetable'}</div><div class="small-muted">${item.start || item.time || ''} — ${item.end || ''} • ${hrs} h</div></div>`;
+      entriesList.appendChild(div);
+    }
+  }
+  // manual entries
+  const manual = loadManual();
+  for(const m of manual){
+    const dt = new Date(m.date + 'T00:00:00');
+    if(dt >= data.start && dt <= data.end){
+      const div = document.createElement('div');
+      div.className = 'glass p-3 rounded flex items-center justify-between';
+      div.innerHTML = `<div><div class="font-semibold">${m.date} • ${m.subject}</div><div class="small-muted">${Number(m.hours).toFixed(2)} h</div></div><div><button class="text-red-400 text-sm" data-id="${m.id}" data-action="delete">Delete</button></div>`;
+      entriesList.appendChild(div);
+    }
+  }
+
+  // recent pomo log
+  pokaPomoList();
+
+  // attach delete handlers for manual entries
+  entriesList.querySelectorAll('[data-action="delete"]').forEach(btn=>{
+    btn.addEventListener('click', (ev)=>{
+      const id = btn.getAttribute('data-id');
+      if(!confirm('Delete manual entry?')) return;
+      let arr = loadManual();
+      arr = arr.filter(x => x.id !== id);
+      saveManual(arr);
+      renderUI();
+    });
+  });
+}
+
+/* ---------------- Show recent pomodoro log ---------------- */
+function pokaPomoList(){
+  pomoList.innerHTML = '';
+  const recent = pomoLog.slice(-30).reverse(); // last 30
+  if(recent.length === 0){ pomoList.innerHTML = '<div class="small-muted">No pomodoro deltas logged yet.</div>'; return; }
+  for(const p of recent){
+    const d = new Date(p.ts);
+    const div = document.createElement('div');
+    div.className = 'flex items-center justify-between py-1';
+    div.innerHTML = `<div class="small-muted">${d.toLocaleString()}</div><div class="font-semibold">${(p.delta/3600).toFixed(3)} h</div>`;
+    pomoList.appendChild(div);
+  }
+}
+
+/* ---------------- Buttons / interactions ---------------- */
+tabs.day.addEventListener('click', ()=>{ view='day'; tabs.day.classList.add('active'); tabs.week.classList.remove('active'); tabs.month.classList.remove('active'); renderUI(); });
+tabs.week.addEventListener('click', ()=>{ view='week'; tabs.week.classList.add('active'); tabs.day.classList.remove('active'); tabs.month.classList.remove('active'); renderUI(); });
+tabs.month.addEventListener('click', ()=>{ view='month'; tabs.month.classList.add('active'); tabs.week.classList.remove('active'); tabs.day.classList.remove('active'); renderUI(); });
+
+prevRange.addEventListener('click', ()=>{
+  if(view==='day') baseDate = addDays(baseDate, -1);
+  else if(view==='week') baseDate = addDays(baseDate, -7);
+  else baseDate.setMonth(baseDate.getMonth()-1);
+  renderUI();
+});
+nextRange.addEventListener('click', ()=>{
+  if(view==='day') baseDate = addDays(baseDate, 1);
+  else if(view==='week') baseDate = addDays(baseDate, 7);
+  else baseDate.setMonth(baseDate.getMonth()+1);
+  renderUI();
+});
+
+/* Manual entry */
+addManual.addEventListener('click', ()=>{
+  const d = entryDate.value;
+  const h = Number(entryHours.value);
+  const s = entrySubject.value.trim();
+  if(!d || !isFinite(h) || h <= 0 || !s){ alert('Please fill date, hours and subject.'); return; }
+  const id = 'm' + Date.now() + Math.random().toString(36).slice(2,6);
+  const arr = loadManual();
+  arr.push({ id, date: d, hours: Number(h), subject: s });
+  saveManual(arr);
+  entryDate.value=''; entryHours.value=''; entrySubject.value='';
+  renderUI();
+});
+clearManual.addEventListener('click', ()=>{ entryDate.value=''; entryHours.value=''; entrySubject.value=''; });
+
+exportCSV.addEventListener('click', ()=>{
+  const data = computeForView();
+  // prepare rows combining subjectTotals
+  const rows = [['subject','hours']];
+  for(const k in data.subjectTotals) rows.push([k, data.subjectTotals[k]]);
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'}); const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = `progress_${view}_${isoDate(data.start)}.csv`; a.click(); a.remove(); URL.revokeObjectURL(url);
+});
+
+clearRange.addEventListener('click', ()=>{
+  if(!confirm('Clear manual entries in this visible range?')) return;
+  const data = computeForView();
+  const arr = loadManual();
+  const filtered = arr.filter(e => {
+    const d = new Date(e.date + 'T00:00:00');
+    return !(d >= data.start && d <= data.end);
+  });
+  saveManual(filtered);
+  renderUI();
+});
+
+/* ---------------- Polling for pomodoro deltas ---------------- */
+function startPollingForPomo(){
+  if(pollInterval) clearInterval(pollInterval);
+  pollInterval = setInterval(()=>{
+    const nowTotal = Number(localStorage.getItem(POMO_TOTAL_KEY) || 0);
+    if(nowTotal > lastSeenFocusSeconds){
+      const delta = nowTotal - lastSeenFocusSeconds;
+      // record delta
+      recordPomoDelta(delta);
+      lastSeenFocusSeconds = nowTotal;
+      savePomoLog();
+      renderUI();
+    } else {
+      lastSeenFocusSeconds = nowTotal;
+    }
+  }, 2000);
+}
+enablePomoLogging.addEventListener('change', (e)=>{
+  if(e.target.checked){
+    // refresh baseline
+    lastSeenFocusSeconds = Number(localStorage.getItem(POMO_TOTAL_KEY) || 0);
+    startPollingForPomo();
+  } else {
+    if(pollInterval) clearInterval(pollInterval);
+    pollInterval = null;
+  }
+});
+
+/* ---------------- Init ---------------- */
+function init(){
+  // ensure default date in manual is today
+  entryDate.value = isoDate(new Date());
+
+  // load existing pomo log if any
+  try { pomoLog = JSON.parse(localStorage.getItem(POMO_LOG_KEY) || '[]'); } catch(e){ pomoLog = []; }
+
+  // if there is no pomoLog but there is focusSeconds, show hint
+  const totalFocus = Number(localStorage.getItem(POMO_TOTAL_KEY) || 0);
+  if(pomoLog.length === 0 && totalFocus > 0){
+    // show a small hint in pomoList
+    pomoList.innerHTML = `<div class="small-muted">Found total focus: ${(totalFocus/3600).toFixed(2)} h (all time). If you want day/week/month breakdown, enable logging so future deltas get recorded while this page is open.</div>`;
+  }
+
+  // start polling only if user enabled
+  if(enablePomoLogging.checked){
+    lastSeenFocusSeconds = Number(localStorage.getItem(POMO_TOTAL_KEY) || 0);
+    startPollingForPomo();
+  }
+
+  renderUI();
+}
+
+// run
+init();
+
+/* add resize listener to redraw pie size friendly */
+let resizeTimer;
+window.addEventListener('resize', ()=>{ clearTimeout(resizeTimer); resizeTimer = setTimeout(renderUI, 250); });
+
+</script>
+</body>
+</html>

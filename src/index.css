@@ -1,0 +1,123 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand: var(--brand-color);
+  --color-brand-hover: var(--brand-hover-color);
+  --color-bg-dark: var(--bg-color);
+  --color-text-muted: #B9BBBE;
+  
+  --font-brand: 'Kdam Thmor Pro', sans-serif;
+  --font-sans: 'Inter', system-ui, sans-serif;
+}
+
+@layer base {
+  :root {
+    --glass-bg: rgba(255, 255, 255, 0.03);
+    --glass-border: rgba(255, 255, 255, 0.07);
+    --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+
+    /* Default: Midnight Blurple */
+    --brand-color: #5865F2;
+    --brand-hover-color: #4752C4;
+    --bg-color: #0D0E12;
+    --mesh-1: hsla(235, 86%, 65%, 0.15);
+    --mesh-2: hsla(280, 80%, 60%, 0.1);
+  }
+
+  [data-theme='cyberpunk'] {
+    --brand-color: #FF00E5;
+    --brand-hover-color: #BD00A9;
+    --bg-color: #050505;
+    --mesh-1: hsla(310, 100%, 50%, 0.15);
+    --mesh-2: hsla(180, 100%, 50%, 0.1);
+  }
+
+  [data-theme='forest'] {
+    --brand-color: #10B981;
+    --brand-hover-color: #059669;
+    --bg-color: #060D0B;
+    --mesh-1: hsla(150, 80%, 40%, 0.15);
+    --mesh-2: hsla(120, 50%, 30%, 0.1);
+  }
+
+  [data-theme='oceanic'] {
+    --brand-color: #0EA5E9;
+    --brand-hover-color: #0284C7;
+    --bg-color: #020617;
+    --mesh-1: hsla(200, 100%, 50%, 0.15);
+    --mesh-2: hsla(220, 80%, 40%, 0.1);
+  }
+
+  [data-theme='sunset'] {
+    --brand-color: #F97316;
+    --brand-hover-color: #EA580C;
+    --bg-color: #0C0404;
+    --mesh-1: hsla(20, 100%, 50%, 0.15);
+    --mesh-2: hsla(0, 80%, 40%, 0.1);
+  }
+
+  body {
+    @apply bg-bg-dark text-[#DCDDDE] font-sans antialiased transition-colors duration-700;
+    overflow-x: hidden;
+  }
+}
+
+@utility glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+@utility glass-card {
+  @apply glass rounded-3xl transition-all duration-300;
+}
+
+@utility glow {
+  text-shadow: 0 0 20px var(--brand-color);
+}
+
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+}
+
+/* Premium Mesh Gradient Animation */
+.mesh-gradient {
+  background-color: var(--bg-color);
+  background-image: 
+    radial-gradient(at 0% 0%, var(--mesh-1) 0px, transparent 50%),
+    radial-gradient(at 50% 0%, var(--mesh-2) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, var(--mesh-1) 0px, transparent 50%),
+    radial-gradient(at 0% 100%, var(--mesh-1) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, var(--mesh-2) 0px, transparent 50%);
+  background-size: 200% 200%;
+  animation: mesh-move 20s ease infinite;
+}
+
+@keyframes mesh-move {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Staggered entry classes */
+.reveal-item {
+  opacity: 0;
+  transform: translateY(20px);
+}

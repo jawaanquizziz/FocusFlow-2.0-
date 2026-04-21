@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>FocusFlow – Timetable</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Kdam+Thmor+Pro&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --bg:#23272A;
+    --glass: rgba(255,255,255,0.03);
+    --accent:#5865F2;
+    --muted:#8E9297;
+  }
+  body{
+    background:var(--bg);
+    color:#DCDDDE;
+    font-family: "Segoe UI", sans-serif;
+    padding:1rem;
+    min-height:100vh;
+  }
+  .glass{
+    background: var(--glass);
+    border:1px solid rgba(255,255,255,0.06);
+    backdrop-filter: blur(10px);
+  }
+  .font-brand{font-family:"Kdam Thmor Pro",sans-serif;}
+  .accent{background:var(--accent);}.accent:hover{background:#4752C4;}
+
+  /* Popup overlay - fade & scale */
+  #timePopup{
+    position:fixed; inset:0; display:none; z-index:80;
+    background: rgba(0,0,0,0.6);
+    align-items:center; justify-content:center;
+  }
+  .popup-inner {
+    transform: scale(.96);
+    opacity: 0;
+    transition: transform 220ms ease, opacity 220ms ease;
+  }
+  #timePopup.show .popup-inner {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  /* clock panel */
+  .clock-panel {
+    width:560px;
+    max-width:95%;
+    border-radius:14px;
+    padding:18px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.12));
+    border:1px solid rgba(88,101,242,0.12);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.6), 0 0 30px rgba(88,101,242,0.06);
+    display:flex;
+    gap:20px;
+    flex-wrap:wrap;
+    justify-content:center;
+    align-items:flex-start;
+  }
+
+  .clock-wrap { width:260px; display:flex; flex-direction:column; align-items:center; gap:10px; }
+
+  .clock {
+    width:240px; height:240px; border-radius:50%; position:relative;
+    background: radial-gradient(circle at 35% 35%, rgba(255,255,255,0.02), rgba(0,0,0,0.15));
+    border:4px solid rgba(88,101,242,0.12);
+    box-shadow: 0 0 30px rgba(88,101,242,0.12);
+    touch-action: none;
+  }
+
+  .tick { position:absolute; left:50%; top:50%; transform-origin:center; }
+  .tick.hour { width:3px; height:14px; background:rgba(255,255,255,0.2); border-radius:2px; }
+  .tick.minute { width:2px; height:7px; background:rgba(255,255,255,0.08); border-radius:2px; }
+
+  .num { position:absolute; color:white; font-weight:700; text-shadow:0 0 10px rgba(88,101,242,0.6); font-size:16px; }
+
+  .hand { position:absolute; left:50%; top:50%; transform-origin:50% 85%; transform:translate(-50%,-100%) rotate(0deg); border-radius:6px; box-shadow:0 0 20px rgba(88,101,242,0.8); transition: transform 120ms linear; pointer-events:auto; }
+  .hand.hour { width:8px; height:70px; background:var(--accent); }
+  .hand.minute { width:6px; height:100px; background:linear-gradient(#9aa6ff, var(--accent)); }
+
+  .center-dot { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:14px; height:14px; border-radius:50%; background:white; box-shadow:0 0 14px white; }
+
+  .time-controls {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;        /* NEW: allows auto-fit */
+  justify-content: center;
+  align-items: center;
+  margin-top: 10px;
+  max-width: 240px;       /* NEW: keeps it inside clock width */
+}
+  .time-box {
+  background: #2C2F33;
+  border: 1px solid rgba(255,255,255,0.04);
+  padding: 4px 8px;        /* reduced padding */
+  border-radius: 8px;
+  min-width: 58px;         /* smaller width to fit */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+  .time-box input {
+  width: 35px;             /* reduced input width */
+  background: transparent;
+  border: none;
+  text-align: center;
+  color: white;
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1;
+  outline: none;
+}
+  .tiny-btn { background:transparent; border:1px solid rgba(255,255,255,0.06); color:#DCDDDE; padding:3px 6px; border-radius:6px; cursor:pointer; }
+
+  .ampm { display:flex; gap:6px; }
+  .ampm .amp { padding:6px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06); background:transparent; color:#DCDDDE; cursor:pointer;font-size: 14px;}
+  .ampm .amp.active { background:var(--accent); color:white; }
+
+  .muted { color:var(--muted); font-size:13px; }
+
+  /* layout adjustments */
+  .timetable-wrap { position:relative; }
+  .clear-btn {
+    position:absolute; right:6px; bottom:-22px; transform:translateY(100%);
+  }
+
+  @media (max-width:760px){
+    .clock-panel{ padding:12px; }
+    .clock-wrap { width:100%; align-items:center; }
+    .clock { width:200px; height:200px; }
+    .time-box input{ width:36px; font-size:14px; }
+    .clock-panel { flex-direction:column; gap:12px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="w-full px-4 pt-2 pb-4 flex flex-col sm:flex-row justify-between items-center gap-2">
+  <h1 class="font-brand text-3xl md:text-4xl font-bold text-white">
+    Focus<span class="text-[#5865F2]">Flow</span>
+  </h1>
+
+  <a href="index.html" class="accent rounded-lg px-4 py-2 text-white font-semibold shadow">
+    Back to Timer
+  </a>
+</div>
+
+<!-- Main timetable box with Clear All outside bottom-right -->
+<div class="max-w-4xl mx-auto">
+
+  <div class="glass rounded-2xl shadow-xl p-6 timetable-wrap" id="mainBox">
+    <h1 class="text-2xl font-bold text-center mb-4">Timetable Planner</h1>
+    <div id="clockHeader" class="text-xl text-center font-semibold text-[#5865F2] mb-4"></div>
+
+    <!-- inputs -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+      <div>
+        <label class="block font-semibold mb-1">Date</label>
+        <input id="date" type="date" class="w-full bg-[#2C2F33] text-white p-2 border border-gray-700 rounded-lg" />
+      </div>
+
+      <div>
+        <label class="block font-semibold mb-1">Start Time</label>
+        <input id="startTime" readonly placeholder="Select start" class="w-full bg-[#2C2F33] text-white p-2 border border-gray-700 rounded-lg cursor-pointer" />
+      </div>
+
+      <div>
+        <label class="block font-semibold mb-1">End Time</label>
+        <input id="endTime" readonly placeholder="Select end" class="w-full bg-[#2C2F33] text-white p-2 border border-gray-700 rounded-lg cursor-pointer" />
+      </div>
+
+      <div>
+        <label class="block font-semibold mb-1">Task</label>
+        <input id="task" class="w-full bg-[#2C2F33] text-white p-2 border border-gray-700 rounded-lg" placeholder="Enter task" />
+      </div>
+    </div>
+
+    <!-- Add Task centered -->
+    <div class="flex justify-center mb-6">
+      <button onclick="addEntry()" class="accent btn text-white px-6 py-2 rounded-lg font-semibold">Add Task</button>
+    </div>
+
+    <!-- timetable list -->
+    <div id="timetable" class="space-y-4"></div>
+  </div>
+
+  
+
+<!-- CLOCK POPUP (one at a time). When opened, it builds proper size and UI -->
+<div id="timePopup">
+  <div class="popup-inner">
+    <div class="clock-panel glass">
+      <!-- Single side: active clock -->
+      <div class="clock-wrap" id="clockWrap">
+        <div class="clock" id="activeClock"></div>
+
+        <!-- box controls style A -->
+        <div class="time-controls">
+          <div class="time-box">
+            <button class="tiny-btn" onclick="changeHour(-1)" title="Decrease hour">−</button>
+            <input id="hourInput" type="number" min="1" max="12" />
+            <button class="tiny-btn" onclick="changeHour(1)" title="Increase hour">+</button>
+          </div>
+
+          <div style="font-weight:700; font-size:18px;">:</div>
+
+          <div class="time-box">
+            <button class="tiny-btn" onclick="changeMinute(-1)" title="Decrease minute">−</button>
+            <input id="minuteInput" type="number" min="0" max="59" />
+            <button class="tiny-btn" onclick="changeMinute(1)" title="Increase minute">+</button>
+          </div>
+
+          <div class="ampm">
+            <button id="ampBtn" class="amp" onclick="toggleAMPM()">AM</button>
+            <button id="pmpBtn" class="amp" onclick="toggleAMPM()">PM</button>
+          </div>
+        </div>
+
+        <div class="muted" id="clockHint">Drag the hands or click the face. Tap + / - or type values. Then Confirm.</div>
+      </div>
+
+      <!-- confirm & cancel -->
+      <div style="display:flex; flex-direction:column; gap:12px; align-items:center; justify-content:center;">
+        <div style="text-align:center; font-weight:700; color:#DDE; margin-bottom:6px;">Choose Time</div>
+        <div style="display:flex; gap:8px; flex-direction:column; width:160px;">
+          <button id="confirmClockBtn" class="accent btn text-white px-4 py-2 rounded-lg">Confirm</button>
+          <button id="cancelClockBtn" class="glass btn muted px-4 py-2 rounded-lg border border-gray-700">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- footer -->
+<p class="text-center text-sm text-[#8E9297] mt-6">Made with 💜 by Alison & Jawaan</p>
+
+<script>
+/* ---------- live header clock ---------- */
+function updateHeaderClock(){
+  document.getElementById('clockHeader').textContent = new Date().toLocaleTimeString();
+}
+setInterval(updateHeaderClock,1000);
+updateHeaderClock();
+
+/* ---------- storage ---------- */
+let timetable = JSON.parse(localStorage.getItem('timetableData') || '{}');
+function save(){ localStorage.setItem('timetableData', JSON.stringify(timetable)); }
+
+/* ---------- states ---------- */
+let activeWhich = null; // "start" or "end" or null
+const state = {
+  start: { hour:12, minute:0, ampm:'AM' },
+  end:   { hour:12, minute:0, ampm:'PM' }
+};
+
+/* ---------- build clock UI when popup opens ---------- */
+function buildClock(container){
+  // make sure clock has fixed size (240)
+  container.style.width = '240px';
+  container.style.height = '240px';
+  container.innerHTML = ''; // clear
+
+  const size = 240;
+  const cx = size/2, cy = size/2, r = size/2 - 20;
+
+  // minute ticks 60
+  for(let i=0;i<60;i++){
+    const tick = document.createElement('div');
+    tick.className = i%5===0 ? 'tick hour' : 'tick minute';
+    tick.style.left = cx + 'px';
+    tick.style.top = cy + 'px';
+    tick.style.transform = `translate(-50%,-50%) rotate(${i*6}deg) translate(0,-${r}px)`;
+    container.appendChild(tick);
+  }
+
+  // numbers 1..12
+  for(let n=1;n<=12;n++){
+    const angle = n*30 * Math.PI/180;
+    const x = cx + (r-28)*Math.sin(angle);
+    const y = cy - (r-28)*Math.cos(angle);
+    const num = document.createElement('div');
+    num.className = 'num';
+    num.style.left = (x-8)+'px';
+    num.style.top = (y-10)+'px';
+    num.textContent = n;
+    container.appendChild(num);
+  }
+
+  // hour hand
+  const h = document.createElement('div');
+  h.className = 'hand hour';
+  h.id = 'hand_hour';
+  container.appendChild(h);
+
+  // minute hand
+  const m = document.createElement('div');
+  m.className = 'hand minute';
+  m.id = 'hand_minute';
+  container.appendChild(m);
+
+  const cd = document.createElement('div');
+  cd.className = 'center-dot';
+  container.appendChild(cd);
+}
+
+/* ---------- geometry helpers ---------- */
+function angleFromCenter(cx,cy,x,y){
+  // angle where 0 = top, increases clockwise
+  const dx = x - cx, dy = y - cy;
+  let a = Math.atan2(dx, -dy) * 180 / Math.PI;
+  if (a < 0) a += 360;
+  return a;
+}
+function setHandTransform(elem, angle){
+  elem.style.transition = 'transform 60ms linear';
+  elem.style.transform = `translate(-50%,-100%) rotate(${angle}deg)`;
+}
+
+/* ---------- open popup for specific (start/end) ---------- */
+const timePopup = document.getElementById('timePopup');
+const popupInner = document.querySelector('.popup-inner');
+const activeClock = document.getElementById('activeClock');
+const hourInput = document.getElementById('hourInput');
+const minuteInput = document.getElementById('minuteInput');
+const confirmClockBtn = document.getElementById('confirmClockBtn');
+const cancelClockBtn = document.getElementById('cancelClockBtn');
+const ampBtn = document.getElementById('ampBtn');
+const pmpBtn = document.getElementById('pmpBtn');
+
+function openClock(which){
+  activeWhich = which; // 'start' or 'end'
+  // build clock UI fresh
+  buildClock(activeClock);
+
+  // if inputs have values already, populate state
+  const currVal = document.getElementById(which==='start' ? 'startTime' : 'endTime').value.trim();
+  if (currVal){
+    const parts = currVal.split(' ');
+    if(parts.length===2){
+      const [hhmm, ap] = parts;
+      const [hh, mm] = hhmm.split(':').map(Number);
+      state[which].hour = (hh%12===0?12:hh);
+      state[which].minute = mm;
+      state[which].ampm = ap;
+    }
+  }
+  // set inputs
+  hourInput.value = state[which].hour.toString().padStart(2,'0');
+  minuteInput.value = state[which].minute.toString().padStart(2,'0');
+  ampBtn.classList.toggle('active', state[which].ampm==='AM');
+  pmpBtn.classList.toggle('active', state[which].ampm==='PM');
+
+  // update visuals
+  updateHandsFromState();
+
+  // show popup (fade/scale)
+  timePopup.style.display = 'flex';
+  // small delay to allow CSS to animate
+  setTimeout(()=> timePopup.classList.add('show'), 10);
+}
+
+/* hook startTime and endTime inputs to open appropriate clock */
+document.getElementById('startTime').addEventListener('click', ()=> openClock('start'));
+document.getElementById('endTime').addEventListener('click', ()=> openClock('end'));
+
+/* cancel confirm */
+cancelClockBtn.addEventListener('click', closeClock);
+confirmClockBtn.addEventListener('click', () => {
+  // write to corresponding input
+  const formatted = formatTime(state[activeWhich].hour, state[activeWhich].minute, state[activeWhich].ampm);
+  if(activeWhich==='start') document.getElementById('startTime').value = formatted;
+  else document.getElementById('endTime').value = formatted;
+  closeClock();
+});
+
+/* close with fade */
+function closeClock(){
+  timePopup.classList.remove('show');
+  setTimeout(()=> { timePopup.style.display='none'; activeWhich = null; }, 220);
+}
+
+/* ---------- change hour/minute via buttons ---------- */
+function changeHour(delta){
+  if(!activeWhich) return;
+  let h = state[activeWhich].hour + delta;
+  if(h < 1) h = 12; if(h > 12) h = 1;
+  state[activeWhich].hour = h;
+  hourInput.value = String(h).padStart(2,'0');
+  updateHandsFromState();
+}
+function changeMinute(delta){
+  if(!activeWhich) return;
+  let m = state[activeWhich].minute + delta;
+  if(m < 0) m = 59;
+  if(m > 59) m = 0;
+  state[activeWhich].minute = m;
+  minuteInput.value = String(m).padStart(2,'0');
+  updateHandsFromState();
+}
+
+/* typing into inputs */
+hourInput.addEventListener('change', ()=> {
+  let v = parseInt(hourInput.value) || 12;
+  if(v < 1) v = 1; if(v > 12) v = 12;
+  state[activeWhich].hour = v;
+  hourInput.value = String(v).padStart(2,'0');
+  updateHandsFromState();
+});
+minuteInput.addEventListener('change', ()=> {
+  let v = parseInt(minuteInput.value) || 0;
+  if(v < 0) v = 0; if(v > 59) v = 59;
+  state[activeWhich].minute = v;
+  minuteInput.value = String(v).padStart(2,'0');
+  updateHandsFromState();
+});
+
+/* AM/PM toggle (single toggle updates active) */
+function toggleAMPM(){
+  if(!activeWhich) return;
+  state[activeWhich].ampm = (state[activeWhich].ampm === 'AM') ? 'PM' : 'AM';
+  ampBtn.classList.toggle('active', state[activeWhich].ampm==='AM');
+  pmpBtn.classList.toggle('active', state[activeWhich].ampm==='PM');
+}
+
+/* ---------- clicking / dragging on clock face to set time ---------- */
+let dragging = false;
+let dragWhich = null;
+
+function getCenterRect(el){
+  const r = el.getBoundingClientRect();
+  return { cx: r.left + r.width/2, cy: r.top + r.height/2, w: r.width, h: r.height };
+}
+
+// click to set hour or minute
+activeClock.addEventListener('click', (e) => {
+  if(!activeWhich) return;
+  const rect = activeClock.getBoundingClientRect();
+  const {cx, cy} = getCenterRect(activeClock);
+  const ang = angleFromCenter(cx, cy, e.clientX, e.clientY);
+  const dx = e.clientX - cx, dy = e.clientY - cy;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  const size = rect.width;
+  if(dist < size * 0.28){
+    // set hour
+    let h = Math.round(ang / 30) || 12;
+    state[activeWhich].hour = h;
+  } else {
+    // set minute
+    let m = Math.round(ang / 6) % 60;
+    state[activeWhich].minute = m;
+  }
+  // update inputs & hands
+  hourInput.value = String(state[activeWhich].hour).padStart(2,'0');
+  minuteInput.value = String(state[activeWhich].minute).padStart(2,'0');
+  updateHandsFromState();
+});
+
+// drag handling for smooth movement
+function startDrag(e){
+  if(!activeWhich) return;
+  dragging = true;
+  dragWhich = activeWhich;
+  document.addEventListener('mousemove', onDrag);
+  document.addEventListener('mouseup', stopDrag);
+  document.addEventListener('touchmove', onDrag, {passive:false});
+  document.addEventListener('touchend', stopDrag);
+}
+function onDrag(e){
+  if(!dragging || !dragWhich) return;
+  const clientX = (e.touches ? e.touches[0].clientX : e.clientX);
+  const clientY = (e.touches ? e.touches[0].clientY : e.clientY);
+  const {cx, cy} = getCenterRect(activeClock);
+  const ang = angleFromCenter(cx, cy, clientX, clientY);
+  const rect = activeClock.getBoundingClientRect();
+  const dx = clientX - cx, dy = clientY - cy;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+
+  // set minute if far, hour if near center for better UX
+  if(dist >= rect.width * 0.28){
+    // minute
+    state[dragWhich].minute = Math.round(ang/6) % 60;
+  } else {
+    // hour (allow half-step via minute)
+    const h = Math.round(ang / 30) || 12;
+    state[dragWhich].hour = h;
+  }
+  // update inputs visually
+  hourInput.value = String(state[dragWhich].hour).padStart(2,'0');
+  minuteInput.value = String(state[dragWhich].minute).padStart(2,'0');
+  updateHandsFromState(dragWhich);
+}
+function stopDrag(){
+  dragging = false;
+  dragWhich = null;
+  document.removeEventListener('mousemove', onDrag);
+  document.removeEventListener('mouseup', stopDrag);
+  document.removeEventListener('touchmove', onDrag);
+  document.removeEventListener('touchend', stopDrag);
+}
+
+// attach pointer down to activeClock to begin drag
+activeClock.addEventListener('mousedown', (e)=> { startDrag(e); });
+activeClock.addEventListener('touchstart', (e)=> { startDrag(e); }, {passive:false});
+
+/* update hands visuals from state */
+function updateHandsFromState(which){
+  if(!activeWhich) return;
+  const s = state[activeWhich];
+  const hElem = document.getElementById('hand_hour');
+  const mElem = document.getElementById('hand_minute');
+  const hAngle = ((s.hour % 12) * 30) + (s.minute * 0.5);
+  const mAngle = s.minute * 6;
+  // temporarily turn off transition for immediate drag smoothing
+  hElem.style.transition = 'transform 60ms linear';
+  mElem.style.transition = 'transform 60ms linear';
+  setHandTransform(hElem, hAngle);
+  setHandTransform(mElem, mAngle);
+  // update AM/PM visuals
+  ampBtn.classList.toggle('active', s.ampm === 'AM');
+  pmpBtn.classList.toggle('active', s.ampm === 'PM');
+}
+
+/* wrapper to update hands for whichever is active */
+function updateHandsFromState(whichArg){
+  updateHandsFromStateInner = () => {}; // dummy to satisfy linters
+  if(!activeWhich) return;
+  const s = state[activeWhich];
+  const hElem = document.getElementById('hand_hour');
+  const mElem = document.getElementById('hand_minute');
+  const hAngle = ((s.hour % 12) * 30) + (s.minute * 0.5);
+  const mAngle = s.minute * 6;
+  hElem.style.transition = 'transform 120ms linear';
+  mElem.style.transition = 'transform 120ms linear';
+  hElem.style.transform = `translate(-50%,-100%) rotate(${hAngle}deg)`;
+  mElem.style.transform = `translate(-50%,-100%) rotate(${mAngle}deg)`;
+  ampBtn.classList.toggle('active', s.ampm === 'AM');
+  pmpBtn.classList.toggle('active', s.ampm === 'PM');
+}
+
+/* ---------- formatting ---------- */
+function formatTime(h,m,ap){ return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ' ' + ap; }
+
+/* ---------- interactions for AM/PM buttons (two buttons share handlers) ---------- */
+ampBtn.addEventListener('click', ()=> {
+  if(!activeWhich) return;
+  state[activeWhich].ampm = 'AM';
+  ampBtn.classList.add('active'); pmpBtn.classList.remove('active');
+});
+pmpBtn.addEventListener('click', ()=> {
+  if(!activeWhich) return;
+  state[activeWhich].ampm = 'PM';
+  pmpBtn.classList.add('active'); ampBtn.classList.remove('active');
+});
+
+/* ---------- add entry / render / edit / delete ---------- */
+function addEntry(){
+  const date = document.getElementById('date').value;
+  const s = document.getElementById('startTime').value.trim();
+  const e = document.getElementById('endTime').value.trim();
+  const task = document.getElementById('task').value.trim();
+  if(!date || !s || !e || !task){ alert('Please fill Date, Start, End and Task'); return; }
+
+  if(!timetable[date]) timetable[date] = [];
+  timetable[date].push({ start: s, end: e, task });
+  save();
+  render();
+  // clear fields
+  document.getElementById('task').value = '';
+  document.getElementById('startTime').value = '';
+  document.getElementById('endTime').value = '';
+}
+
+function render(){
+  const box = document.getElementById('timetable');
+  box.innerHTML = '';
+  const dates = Object.keys(timetable).sort();
+  if(dates.length === 0){
+    box.innerHTML = `<div class="glass p-4 rounded-lg text-center muted">No tasks yet — add one!</div>`;
+    return;
+  }
+  for(const date of dates){
+    const card = document.createElement('div');
+    card.className = 'glass p-4 rounded-xl';
+    let html = `<h3 class="text-white font-bold mb-3">${date}</h3>`;
+    timetable[date].forEach((entry,i)=>{
+      html += `
+        <div class="border-l-4 border-[#5865F2] pl-3 mb-3 py-2 flex justify-between items-center">
+          <div>
+            <p class="font-semibold text-white">${entry.start} — ${entry.end}</p>
+            <p class="text-gray-300">${entry.task}</p>
+          </div>
+          <div class="flex flex-col items-end gap-2">
+            <div>
+              <button onclick="editEntry('${date}', ${i})" class="text-green-400 font-bold mr-2">Edit</button>
+              <button onclick="deleteEntry('${date}', ${i})" class="text-red-400 font-bold">Delete</button>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+    card.innerHTML = html;
+    box.appendChild(card);
+  }
+}
+
+function editEntry(date, idx){
+  const e = timetable[date][idx];
+  const newStart = prompt('Edit start (HH:MM AM/PM):', e.start);
+  if(newStart === null) return;
+  const newEnd = prompt('Edit end (HH:MM AM/PM):', e.end);
+  if(newEnd === null) return;
+  const newTask = prompt('Edit task:', e.task);
+  if(newTask === null) return;
+  e.start = newStart.trim(); e.end = newEnd.trim(); e.task = newTask.trim();
+  save(); render();
+}
+
+function deleteEntry(date, idx){
+  if(!confirm('Delete this task?')) return;
+  timetable[date].splice(idx,1);
+  if(timetable[date].length===0) delete timetable[date];
+  save(); render();
+}
+
+function clearAll(){
+  if(!confirm('Clear all timetable data?')) return;
+  timetable = {}; save(); render();
+}
+
+/* ---------- init ---------- */
+document.addEventListener('DOMContentLoaded', ()=>{
+  // set initial state for start & end times
+  state.start = state.start || { hour:12, minute:0, ampm:'AM' };
+  state.end = state.end || { hour:12, minute:0, ampm:'PM' };
+
+  // ensure active clock built when popup opens (we build inside openClock)
+  render();
+
+  // allow clicking outside to close
+  timePopup.addEventListener('click', (ev)=>{
+    if(ev.target === timePopup){ closeClock(); }
+  });
+});
+</script>
+</body>
+</html>

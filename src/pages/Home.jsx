@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings as SettingsIcon, Clock, Calendar, BarChart, Bell } from 'lucide-react';
+import { Settings as SettingsIcon, Clock, Calendar, Bell, Palette, LogOut, TreePine, Shield } from 'lucide-react';
 import { useTimer } from '../hooks/useTimer';
 import TimerDisplay from '../components/TimerDisplay';
 import TodoList from '../components/TodoList';
@@ -10,9 +10,9 @@ import { Link } from 'react-router-dom';
 import { useNotifications } from '../hooks/useNotifications';
 import ThemeGallery from '../components/ThemeGallery';
 import Leaderboard from '../components/Leaderboard';
-import RacingTrack from '../components/RacingTrack';
+import ForestGrove from '../components/ForestGrove';
+import SpotifyPlayer from '../components/SpotifyPlayer';
 import { useAuth } from '../hooks/useAuth';
-import { Palette, LogOut, Trophy } from 'lucide-react';
 
 const Home = () => {
   const {
@@ -26,15 +26,26 @@ const Home = () => {
     resetTimer,
     settings,
     updateSettings,
-    MODES
+    MODES,
+    currentTask
   } = useTimer();
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isThemeOpen, setIsThemeOpen] = useState(false);
-  const [isRacingMode, setIsRacingMode] = useState(true);
+  const [isGroveMode, setIsGroveMode] = useState(true);
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [taskInput, setTaskInput] = useState('');
   const [rewardMsg, setRewardMsg] = useState(null);
   
   const { user, logout } = useAuth();
+
+  const getActiveTodos = () => {
+    try {
+      const saved = localStorage.getItem('todos');
+      if (saved) return JSON.parse(saved).filter(t => !t.done).slice(0, 5); // Take top 5
+    } catch(e) {}
+    return [];
+  };
 
   const MILESTONES = [
     { target: 3600, label: '1 Hour' },
@@ -62,14 +73,38 @@ const Home = () => {
   const lastTimeRef = React.useRef(timeLeft);
   React.useEffect(() => {
     if (lastTimeRef.current > 0 && timeLeft === 0 && !isRunning) {
-        const modeLabel = mode === MODES.POMODORO ? 'Focus session' : 'Break';
+        const isFocus = mode === MODES.POMODORO;
+        const modeLabel = isFocus ? 'Focus session' : 'Break';
+        let bodyText = isFocus ? 'Time to take a break.' : 'Time to get back to work!';
+        if (isFocus && currentTask) {
+             bodyText = `Tree Planted! 🌳 You grew a tree for: ${currentTask}`;
+        }
         sendNotification(`${modeLabel} finished!`, {
-            body: mode === MODES.POMODORO ? 'Time to take a break.' : 'Time to get back to work!',
+            body: bodyText,
             requireInteraction: true
         });
     }
     lastTimeRef.current = timeLeft;
-  }, [timeLeft, isRunning, mode, MODES, sendNotification]);
+  }, [timeLeft, isRunning, mode, MODES, sendNotification, currentTask]);
+
+  const handleStartFlowClick = () => {
+    if (isRunning) {
+        stopTimer();
+    } else {
+        const isResuming = timeLeft < settings[mode];
+        if (mode === MODES.POMODORO && !isResuming) {
+            setIsTaskModalOpen(true);
+        } else {
+            startTimer();
+        }
+    }
+  };
+
+  const confirmStartSession = (taskName) => {
+    setIsTaskModalOpen(false);
+    setTaskInput('');
+    startTimer(taskName || 'Focus Session');
+  };
 
   const formatFocusTime = (seconds) => {
     const h = Math.floor(seconds / 3600);
@@ -116,8 +151,8 @@ const Home = () => {
             </div>
         </div>
         
-        <div className="flex items-center gap-3">
-          <div className="bg-white/5 px-6 py-3 rounded-2xl flex items-center gap-4 border border-white/5 group hover:bg-white/10 transition-all cursor-default">
+        <div className="flex items-center gap-2">
+          <div className="bg-white/5 px-4 py-3 rounded-2xl flex items-center gap-3 border border-white/5 group hover:bg-white/10 transition-all cursor-default">
             <div className="p-2 bg-brand/10 rounded-lg text-brand group-hover:scale-110 transition-transform">
                 <Clock size={18} />
             </div>
@@ -151,7 +186,6 @@ const Home = () => {
                 />
             )}
             <Bell size={20} className="relative z-10" />
-            
             {permission === 'default' && (
                 <span className="absolute -top-1 -right-1 flex h-3 w-3 relative z-20">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-75"></span>
@@ -159,6 +193,37 @@ const Home = () => {
                 </span>
             )}
           </button>
+
+          {/* Profile button */}
+          <Link
+            to="/profile"
+            className="relative rounded-2xl overflow-hidden transition-all hover:ring-2 hover:ring-brand/40 shrink-0"
+            title="My Profile"
+          >
+            {user?.photoURL ? (
+              <img
+                src={user.photoURL}
+                alt="Profile"
+                referrerPolicy="no-referrer"
+                className="w-10 h-10 rounded-2xl object-cover"
+              />
+            ) : (
+              <div
+                className="w-10 h-10 rounded-2xl bg-brand flex items-center justify-center text-white font-black text-sm"
+              >
+                {(user?.displayName || user?.email || 'U')[0].toUpperCase()}
+              </div>
+            )}
+          </Link>
+
+          {/* Admin link — only shown for admin users */}
+          <Link
+            to="/admin"
+            className="p-3 rounded-2xl transition-all text-text-muted bg-white/5 hover:text-red-400 hover:bg-red-500/10"
+            title="Admin Panel"
+          >
+            <Shield size={20} />
+          </Link>
 
           <button 
             onClick={logout}
@@ -206,9 +271,9 @@ const Home = () => {
             ))}
             </div>
 
-            {isRacingMode && mode !== MODES.STOPWATCH && (
+            {isGroveMode && mode !== MODES.STOPWATCH && (
                 <div className="w-full mb-8">
-                    <RacingTrack 
+                    <ForestGrove 
                         progress={mode === MODES.STOPWATCH ? 0 : 1 - (timeLeft / settings[mode])} 
                         isRunning={isRunning}
                         mode={mode}
@@ -220,17 +285,17 @@ const Home = () => {
 
             <div className="absolute bottom-8 left-8">
                 <button 
-                    onClick={() => setIsRacingMode(!isRacingMode)}
-                    className={`p-3 rounded-2xl transition-all ${isRacingMode ? 'bg-brand text-white shadow-lg shadow-brand/20' : 'bg-white/5 text-text-muted hover:text-white'}`}
-                    title="Toggle Race Mode"
+                    onClick={() => setIsGroveMode(!isGroveMode)}
+                    className={`p-3 rounded-2xl transition-all ${isGroveMode ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'bg-white/5 text-text-muted hover:text-white'}`}
+                    title="Toggle Forest Grove"
                 >
-                    <Trophy size={20} />
+                    <TreePine size={20} />
                 </button>
             </div>
 
             <div className="mt-12 flex gap-4 w-full max-w-sm justify-center">
             <button
-                onClick={isRunning ? stopTimer : startTimer}
+                onClick={handleStartFlowClick}
                 className={`flex-[2] ${isRunning ? 'bg-white/10 hover:bg-white/20' : 'bg-brand shadow-[0_12px_40px_rgba(88,101,242,0.4)]'} text-white font-bold py-5 rounded-3xl text-xl transition-all active:scale-95 group relative overflow-hidden`}
             >
                 <span className="relative z-10">{isRunning ? 'PAUSE' : 'START FLOW'}</span>
@@ -255,24 +320,28 @@ const Home = () => {
             <TodoList />
         </motion.div>
 
-        {/* Ambient Sounds & Planner Grid - 5 columns */}
-        <div className="col-span-12 lg:col-span-5 grid grid-rows-2 gap-6">
-            <motion.div variants={itemVariants} className="h-full">
+        {/* Right Column — Ambient + Spotify + Planner */}
+        <div className="col-span-12 lg:col-span-5 flex flex-col gap-6">
+            <motion.div variants={itemVariants}>
                 <AmbientSounds />
             </motion.div>
-            
-            <motion.div variants={itemVariants} className="h-full">
-                <Link to="/planner" className="glass p-8 rounded-[2.5rem] flex items-center justify-between h-full hover:border-brand/40 transition-all group relative">
-                    <div className="flex items-center gap-6">
-                        <div className="p-4 bg-brand/10 rounded-2xl text-brand group-hover:rotate-12 transition-transform duration-500">
-                            <Calendar size={32} />
+
+            <motion.div variants={itemVariants} className="flex-1">
+                <SpotifyPlayer />
+            </motion.div>
+
+            <motion.div variants={itemVariants}>
+                <Link to="/planner" className="glass p-6 rounded-[2.5rem] flex items-center justify-between hover:border-brand/40 transition-all group relative">
+                    <div className="flex items-center gap-5">
+                        <div className="p-3.5 bg-brand/10 rounded-2xl text-brand group-hover:rotate-12 transition-transform duration-500">
+                            <Calendar size={28} />
                         </div>
                         <div>
-                            <h3 className="text-2xl font-bold">Planner</h3>
+                            <h3 className="text-xl font-bold">Planner</h3>
                             <p className="text-text-muted text-sm">Schedule your daily rhythm</p>
                         </div>
                     </div>
-                    <div className="text-brand opacity-0 group-hover:opacity-100 transition-all duration-500 font-bold text-2xl pr-4">→</div>
+                    <div className="text-brand opacity-0 group-hover:opacity-100 transition-all duration-500 font-bold text-2xl pr-2">→</div>
                 </Link>
             </motion.div>
         </div>
@@ -310,6 +379,76 @@ const Home = () => {
             <div className="p-2 bg-white/20 rounded-full">✨</div>
             <span>{rewardMsg}</span>
           </motion.div>
+        )}
+      </AnimatePresence>
+      {/* Task Modal */}
+      <AnimatePresence>
+        {isTaskModalOpen && (
+            <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
+            >
+                <motion.div
+                    initial={{ scale: 0.95, y: 20 }}
+                    animate={{ scale: 1, y: 0 }}
+                    exit={{ scale: 0.95, y: 20 }}
+                    className="bg-[#0f172a] border border-emerald-500/30 w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl shadow-emerald-900/20 relative"
+                >
+                    <div className="flex justify-between items-center mb-6">
+                        <div className="flex items-center gap-3">
+                            <div className="p-3 bg-emerald-500/10 rounded-2xl text-emerald-400">
+                                <TreePine size={24} />
+                            </div>
+                            <h2 className="text-xl font-bold text-white">Plant a Tree</h2>
+                        </div>
+                    </div>
+                    
+                    <p className="text-sm text-text-muted mb-6">What task will this tree represent?</p>
+                    
+                    <input
+                        autoFocus
+                        value={taskInput}
+                        onChange={(e) => setTaskInput(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && confirmStartSession(taskInput)}
+                        placeholder="e.g. Read Chapter 1"
+                        className="w-full bg-[#1e293b] border border-white/10 rounded-2xl px-5 py-4 focus:outline-none focus:border-emerald-500/50 text-white mb-6"
+                    />
+
+                    {getActiveTodos().length > 0 && (
+                        <div className="mb-6">
+                            <p className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3">Active Tasks</p>
+                            <div className="flex flex-wrap gap-2">
+                                {getActiveTodos().map((todo, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => confirmStartSession(todo.text)}
+                                        className="bg-white/5 hover:bg-emerald-500/20 text-sm text-emerald-100/70 hover:text-emerald-300 border border-white/5 hover:border-emerald-500/30 px-4 py-2 rounded-xl transition-all"
+                                    >
+                                        {todo.text}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="flex gap-3">
+                        <button
+                            onClick={() => setIsTaskModalOpen(false)}
+                            className="flex-1 px-6 py-4 rounded-2xl text-text-muted hover:bg-white/5 transition-all font-bold"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={() => confirmStartSession(taskInput)}
+                            className="flex-1 px-6 py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-all shadow-[0_8px_20px_rgba(16,185,129,0.3)]"
+                        >
+                            Start Flow
+                        </button>
+                    </div>
+                </motion.div>
+            </motion.div>
         )}
       </AnimatePresence>
     </motion.div>

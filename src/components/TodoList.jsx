@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Trash2, CheckCircle, Circle, ListTodo } from 'lucide-react';
+import { useNotifications } from '../hooks/useNotifications';
 
 const TodoList = () => {
   const [todos, setTodos] = useState(() => {
@@ -8,10 +9,22 @@ const TodoList = () => {
     return saved ? JSON.parse(saved) : [];
   });
   const [input, setInput] = useState('');
+  const { sendNotification } = useNotifications();
 
   useEffect(() => {
     localStorage.setItem('todos', JSON.stringify(todos));
   }, [todos]);
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      try {
+        const saved = localStorage.getItem('todos');
+        if (saved) setTodos(JSON.parse(saved));
+      } catch (e) {}
+    };
+    window.addEventListener('todosUpdated', handleStorageChange);
+    return () => window.removeEventListener('todosUpdated', handleStorageChange);
+  }, []);
 
   const addTodo = () => {
     if (!input.trim()) return;
@@ -20,7 +33,18 @@ const TodoList = () => {
   };
 
   const toggleTodo = (id) => {
-    setTodos(todos.map(t => t.id === id ? { ...t, done: !t.done } : t));
+    setTodos(todos.map(t => {
+      if (t.id === id) {
+        const isNowDone = !t.done;
+        if (isNowDone) {
+            sendNotification('Task Completed! 🎉', {
+                body: `Great job finishing: ${t.text}`,
+            });
+        }
+        return { ...t, done: isNowDone };
+      }
+      return t;
+    }));
   };
 
   const deleteTodo = (id) => {

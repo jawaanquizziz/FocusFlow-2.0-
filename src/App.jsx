@@ -4,6 +4,8 @@ import Home from './pages/Home';
 import Timetable from './pages/Timetable';
 import Progress from './pages/Progress';
 import Planner from './pages/Planner';
+import Profile from './pages/Profile';
+import Admin from './pages/Admin';
 import Background from './components/Background';
 import SplashScreen from './components/SplashScreen';
 import Auth from './pages/Auth';
@@ -64,6 +66,8 @@ function App() {
                                 <Route path="/timetable" element={<Timetable />} />
                                 <Route path="/planner" element={<Planner />} />
                                 <Route path="/progress" element={<Progress />} />
+                                <Route path="/profile" element={<Profile />} />
+                                <Route path="/admin" element={<Admin />} />
                                 <Route path="*" element={<Navigate to="/" replace />} />
                             </Routes>
                         </motion.div>

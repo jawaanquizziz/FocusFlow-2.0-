@@ -4,30 +4,38 @@ import { motion, AnimatePresence } from 'framer-motion';
 const Digit = ({ value, label }) => {
   return (
     <div className="flex flex-col items-center">
-      <div className="relative w-16 h-24 sm:w-24 sm:h-36 bg-white/[0.03] rounded-[1.5rem] sm:rounded-[2rem] flex items-center justify-center overflow-hidden border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.3)] group transition-all duration-500 hover:border-brand/30">
-        {/* Glow behind digit */}
-        <div className="absolute inset-0 bg-brand/5 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-        
+      <div className="relative w-16 h-24 sm:w-24 sm:h-36 rounded-[1.5rem] sm:rounded-[2rem] flex items-center justify-center overflow-hidden border transition-all duration-500 group"
+        style={{
+          background: 'linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          boxShadow: '0 20px 50px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.06) inset',
+        }}>
+        {/* Brand glow on hover */}
+        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+          style={{ background: 'radial-gradient(circle at 50% 50%, rgba(var(--brand-rgb),0.12), transparent 70%)' }} />
+
         <AnimatePresence mode="popLayout">
           <motion.span
             key={value}
-            initial={{ y: 20, opacity: 0, rotateX: -90, filter: 'blur(10px)' }}
-            animate={{ y: 0, opacity: 1, rotateX: 0, filter: 'blur(0px)' }}
-            exit={{ y: -20, opacity: 0, rotateX: 90, filter: 'blur(10px)' }}
-            transition={{ type: "spring", stiffness: 300, damping: 25 }}
-            className="text-5xl sm:text-8xl font-bold text-white glow font-mono relative z-10"
+            initial={{ y: 18, opacity: 0, filter: 'blur(8px)' }}
+            animate={{ y: 0, opacity: 1, filter: 'blur(0px)' }}
+            exit={{ y: -18, opacity: 0, filter: 'blur(8px)' }}
+            transition={{ type: 'spring', stiffness: 350, damping: 28 }}
+            className="text-5xl sm:text-8xl font-bold text-white relative z-10"
+            style={{ fontFamily: 'JetBrains Mono, Fira Code, monospace', textShadow: '0 0 30px rgba(var(--brand-rgb),0.4)' }}
           >
             {value}
           </motion.span>
         </AnimatePresence>
-        
-        {/* Flip Line Overlay */}
-        <div className="absolute w-full h-[1px] bg-white/5 top-1/2 left-0 z-10 shadow-[0_0_10px_rgba(0,0,0,0.5)]" />
-        
-        {/* Shine highlight */}
-        <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
+
+        {/* Center split line */}
+        <div className="absolute w-full h-px top-1/2 left-0 z-10"
+          style={{ background: 'rgba(0,0,0,0.3)', boxShadow: '0 1px 0 rgba(255,255,255,0.04)' }} />
+        {/* Top shine */}
+        <div className="absolute top-0 left-0 w-full h-1/2 pointer-events-none"
+          style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.07) 0%, transparent 100%)' }} />
       </div>
-      {label && <span className="text-[10px] uppercase tracking-[0.3em] font-bold text-text-muted mt-4 opacity-60">{label}</span>}
+      {label && <span className="text-[9px] uppercase tracking-[0.3em] font-bold mt-3 opacity-40" style={{ color: 'var(--color-text-muted)' }}>{label}</span>}
     </div>
   );
 };

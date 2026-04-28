@@ -17,12 +17,13 @@ const DEFAULT_SETTINGS = {
 };
 
 // Log a completed focus session to localStorage and Firestore
-const logSession = (durationSeconds, mode) => {
+const logSession = (durationSeconds, mode, taskName = null) => {
   const session = {
     timestamp: new Date().toISOString(),
     date: new Date().toLocaleDateString('en-CA'), // YYYY-MM-DD
     duration: durationSeconds,
     mode,
+    task: taskName
   };
 
   // Save to localStorage for local progress charts
@@ -37,6 +38,8 @@ const logSession = (durationSeconds, mode) => {
     try {
       updateDoc(doc(db, 'users', user.uid), {
         totalFocusTime: increment(durationSeconds),
+        treesPlanted: increment(1),
+        sessionsCount: increment(1),
         sessions: arrayUnion(session),
       }).catch(() => {}); // silent fail - not critical
     } catch (_) {}
@@ -55,7 +58,8 @@ export const useTimer = () => {
   const [totalFocusSeconds, setTotalFocusSeconds] = useState(() =>
     parseInt(localStorage.getItem('focusSeconds') || '0')
   );
-
+  
+  const currentTaskRef = useRef(null);
   const intervalRef = useRef(null);
   const startTimeRef = useRef(null);
   const pausedTimeRef = useRef(0);
@@ -77,8 +81,11 @@ export const useTimer = () => {
     pausedTimeRef.current = 0;
   }, [settings]);
 
-  const startTimer = useCallback(() => {
+  const startTimer = useCallback((taskName = null) => {
     setIsRunning(true);
+    if (taskName && typeof taskName === 'string') {
+        currentTaskRef.current = taskName;
+    }
     startTimeRef.current = Date.now();
     const initialTime = pausedTimeRef.current || timeLeft;
     sessionStartSecondsRef.current = totalFocusSeconds;
@@ -102,9 +109,25 @@ export const useTimer = () => {
           setIsRunning(false);
           clearInterval(intervalRef.current);
 
-          // Log completed session
+          // Log completed session with task name
           const sessionDuration = settings[mode];
-          logSession(sessionDuration, mode);
+          const completedTask = currentTaskRef.current;
+          logSession(sessionDuration, mode, completedTask);
+          currentTaskRef.current = null; // reset after log
+
+          if (mode === MODES.POMODORO && completedTask) {
+              try {
+                  const savedTodos = localStorage.getItem('todos');
+                  if (savedTodos) {
+                      const todos = JSON.parse(savedTodos);
+                      const updatedTodos = todos.map(t => 
+                          t.text === completedTask ? { ...t, done: true } : t
+                      );
+                      localStorage.setItem('todos', JSON.stringify(updatedTodos));
+                      window.dispatchEvent(new Event('todosUpdated'));
+                  }
+              } catch (e) {}
+          }
 
           const alarm = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-typewriter-soft-keys-1110.mp3');
           alarm.play().catch(() => {});
@@ -129,6 +152,7 @@ export const useTimer = () => {
     stopTimer();
     setTimeLeft(settings[mode]);
     pausedTimeRef.current = 0;
+    currentTaskRef.current = null;
   }, [mode, settings, stopTimer]);
 
   const updateSettings = useCallback((newSettings) => {
@@ -141,6 +165,7 @@ export const useTimer = () => {
   return {
     mode, timeLeft, isRunning, totalFocusSeconds,
     switchMode, startTimer, stopTimer, resetTimer,
-    settings, updateSettings, MODES
+    settings, updateSettings, MODES,
+    currentTask: currentTaskRef.current
   };
 };

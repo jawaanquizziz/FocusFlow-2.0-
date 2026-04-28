@@ -18,6 +18,10 @@ let auth;
 let db;
 let analytics;
 const googleProvider = new GoogleAuthProvider();
+googleProvider.addScope('profile');
+googleProvider.addScope('email');
+// Always prompt account selection so users can switch Google accounts
+googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 try {
     if (!getApps().length) {

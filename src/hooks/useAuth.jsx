@@ -5,8 +5,9 @@ import {
   createUserWithEmailAndPassword, 
   signOut,
   updateProfile,
+  signInWithPopup,
 } from 'firebase/auth';
-import { auth, db } from '../services/firebase';
+import { auth, db, googleProvider } from '../services/firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 // Create a single context for auth state
@@ -18,8 +19,8 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Max 2 second wait, then unblock UI regardless
-        const timeout = setTimeout(() => setLoading(false), 2000);
+        // Max 500ms wait, then unblock UI regardless
+        const timeout = setTimeout(() => setLoading(false), 500);
 
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             clearTimeout(timeout);
@@ -48,7 +49,8 @@ export const AuthProvider = ({ children }) => {
             await setDoc(doc(db, 'users', result.user.uid), {
                 name, email,
                 createdAt: new Date().toISOString(),
-                totalFocusTime: 0
+                totalFocusTime: 0,
+                treesPlanted: 0
             });
         } catch (_) {}
         return result.user;
@@ -70,10 +72,29 @@ export const AuthProvider = ({ children }) => {
         return signInWithEmailAndPassword(auth, email, password);
     };
 
+    const signInWithGoogle = async () => {
+        const result = await signInWithPopup(auth, googleProvider);
+        const firebaseUser = result.user;
+
+        // Upsert Firestore document — only write fields that are missing
+        try {
+            await setDoc(doc(db, 'users', firebaseUser.uid), {
+                name: firebaseUser.displayName || 'Anonymous',
+                email: firebaseUser.email || '',
+                photoURL: firebaseUser.photoURL || '',
+                createdAt: new Date().toISOString(),
+                totalFocusTime: 0,
+                treesPlanted: 0,
+            }, { merge: true }); // merge: true keeps existing treesPlanted intact
+        } catch (_) {}
+
+        return firebaseUser;
+    };
+
     const logout = () => signOut(auth);
 
     return (
-        <AuthContext.Provider value={{ user, loading, register, login, logout }}>
+        <AuthContext.Provider value={{ user, loading, register, login, signInWithGoogle, logout }}>
             {children}
         </AuthContext.Provider>
     );

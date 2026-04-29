@@ -18,14 +18,7 @@ function App() {
   const { user, loading } = useAuth();
   const { theme, wallpaper } = useTheme();
 
-  if (loading) return (
-    <div className="fixed inset-0 bg-[#0D0E12] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-            <div className="w-12 h-12 border-4 border-brand border-t-transparent rounded-full animate-spin" />
-            <p className="text-text-muted text-xs animate-pulse font-bold uppercase tracking-widest">Initializing FocusFlow...</p>
-        </div>
-    </div>
-  );
+
 
   return (
     <Router>

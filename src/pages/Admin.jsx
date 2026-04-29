@@ -27,7 +27,9 @@ const Avatar = ({ photoURL, name, size = 32 }) => {
     );
 };
 
-const ADMIN_EMAILS = ['admin@focusflow.app']; // add your email here
+// ── ADMIN ACCESS CONFIGURATION ───────────────────────────────────
+const ADMIN_EMAILS = ['admin@focusflow.app', 'jawaan25fcrit@gmail.com']; 
+// ─────────────────────────────────────────────────────────────────
 
 // How many seconds → human readable
 const fmtTime = (s) => {

@@ -14,6 +14,11 @@ import ForestGrove from '../components/ForestGrove';
 import SpotifyPlayer from '../components/SpotifyPlayer';
 import { useAuth } from '../hooks/useAuth';
 
+// ── ADMIN ACCESS CONFIGURATION ───────────────────────────────────
+// This MUST match the list in src/pages/Home.jsx
+const ADMIN_EMAILS = ['admin@focusflow.app', 'jawaan25fcrit@gmail.com']; 
+// ─────────────────────────────────────────────────────────────────
+
 const Home = () => {
   const {
     mode,
@@ -216,14 +221,7 @@ const Home = () => {
             )}
           </Link>
 
-          {/* Admin link — only shown for admin users */}
-          <Link
-            to="/admin"
-            className="p-3 rounded-2xl transition-all text-text-muted bg-white/5 hover:text-red-400 hover:bg-red-500/10"
-            title="Admin Panel"
-          >
-            <Shield size={20} />
-          </Link>
+
 
           <button 
             onClick={logout}

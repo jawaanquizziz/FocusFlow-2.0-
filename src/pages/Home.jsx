@@ -16,7 +16,7 @@ import { useAuth } from '../hooks/useAuth';
 
 // ── ADMIN ACCESS CONFIGURATION ───────────────────────────────────
 // This MUST match the list in src/pages/Home.jsx
-const ADMIN_EMAILS = ['admin@focusflow.app', 'jawaan25fcrit@gmail.com']; 
+const ADMIN_EMAILS = ['jawaan25fcrit@gmail.com']; 
 // ─────────────────────────────────────────────────────────────────
 
 /* ─── Invite Friends Modal ────────────────────────────────────────────── */
@@ -221,7 +221,7 @@ const Home = () => {
       {/* Header Bento Card */}
       <motion.header 
         variants={itemVariants}
-        className="glass p-6 rounded-[2rem] flex flex-col sm:flex-row justify-between items-center gap-6"
+        className="glass p-6 rounded-[2rem] flex flex-col sm:flex-row justify-between items-center gap-6 z-50"
       >
         <div className="flex items-center gap-4">
             <img src="/logo.png" alt="FocusFlow" className="w-12 h-12 rounded-xl shadow-lg" />
@@ -484,7 +484,10 @@ const Home = () => {
         variants={itemVariants}
         className="w-full text-center py-6 text-text-muted text-[10px] tracking-[0.3em] uppercase font-bold opacity-60"
       >
-        FocusFlow Productivity Suite
+        FocusFlow Productivity Suite &nbsp;·&nbsp;
+        <Link to="/terms" className="hover:text-white transition-colors">Terms</Link>
+        &nbsp;·&nbsp;
+        <Link to="/privacy" className="hover:text-white transition-colors">Privacy</Link>
       </motion.footer>
 
       <SettingsModal

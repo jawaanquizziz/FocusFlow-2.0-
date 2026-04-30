@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { auth, db } from '../services/firebase';
-import { doc, updateDoc, increment, arrayUnion } from 'firebase/firestore';
+import { doc, setDoc, increment, arrayUnion } from 'firebase/firestore';
 
 const MODES = {
   POMODORO: 'pomodoro',
@@ -36,12 +36,12 @@ const logSession = (durationSeconds, mode, taskName = null) => {
   const user = auth.currentUser;
   if (user && db && mode === MODES.POMODORO) {
     try {
-      updateDoc(doc(db, 'users', user.uid), {
+      setDoc(doc(db, 'users', user.uid), {
         totalFocusTime: increment(durationSeconds),
         treesPlanted: increment(1),
         sessionsCount: increment(1),
         sessions: arrayUnion(session),
-      }).catch(() => {}); // silent fail - not critical
+      }, { merge: true }).catch(() => {}); // silent fail - not critical
     } catch (_) {}
   }
 };

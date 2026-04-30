@@ -28,7 +28,7 @@ const Avatar = ({ photoURL, name, size = 32 }) => {
 };
 
 // ── ADMIN ACCESS CONFIGURATION ───────────────────────────────────
-const ADMIN_EMAILS = ['admin@focusflow.app', 'jawaan25fcrit@gmail.com']; 
+const ADMIN_EMAILS = ['jawaan25fcrit@gmail.com']; 
 // ─────────────────────────────────────────────────────────────────
 
 // How many seconds → human readable
@@ -50,15 +50,21 @@ const Admin = () => {
 
     const isAdmin = user && (
         ADMIN_EMAILS.includes(user.email) ||
-        user.email?.endsWith('@focusflow.app') ||
         user.uid === 'admin' // or hardcode your own UID here
     );
 
     const fetchUsers = async () => {
         setLoading(true);
         try {
-            const snap = await getDocs(query(collection(db, 'users'), orderBy('createdAt', 'desc')));
-            setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            const snap = await getDocs(collection(db, 'users'));
+            const userList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            // Sort by createdAt descending locally to avoid omitting users without the field
+            userList.sort((a, b) => {
+                const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                return bTime - aTime;
+            });
+            setUsers(userList);
         } catch (e) {
             console.error(e);
         } finally {

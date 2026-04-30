@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    Trophy, Crown, Medal, Flame, Share2, X,
+    Trophy, Crown, Medal, Share2, X,
     Link as LinkIcon, Check
 } from 'lucide-react';
 
@@ -11,8 +11,12 @@ const TwitterIcon = ({ size = 18 }) => (
         <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.259 5.631zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
     </svg>
 );
+
 import { db } from '../services/firebase';
-import { collection, query, orderBy, limit, onSnapshot, doc, getDoc } from 'firebase/firestore';
+import {
+    collection, query, orderBy, limit,
+    onSnapshot, doc, getDoc, getDocs, where
+} from 'firebase/firestore';
 import { useAuth } from '../hooks/useAuth';
 
 /* ─── Avatar helper ─────────────────────────────────────────────────── */
@@ -78,7 +82,6 @@ const ShareModal = ({ ranker, rank, onClose }) => {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch {
-            // Fallback
             const el = document.createElement('textarea');
             el.value = `${shareText}\n${shareUrl}`;
             document.body.appendChild(el);
@@ -105,7 +108,6 @@ const ShareModal = ({ ranker, rank, onClose }) => {
                 onClick={e => e.stopPropagation()}
                 className="bg-[#0f172a] border border-white/10 w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl"
             >
-                {/* Header */}
                 <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
                         <div className="p-3 bg-brand/10 rounded-2xl"><Share2 size={20} className="text-brand" /></div>
@@ -119,7 +121,6 @@ const ShareModal = ({ ranker, rank, onClose }) => {
                     </button>
                 </div>
 
-                {/* Achievement Card Preview */}
                 <div className="bg-gradient-to-br from-brand/20 to-emerald-500/10 border border-brand/20 rounded-2xl p-4 mb-6">
                     <div className="flex items-center gap-3 mb-3">
                         <Avatar photoURL={ranker?.photoURL} name={name} size={36} />
@@ -140,7 +141,6 @@ const ShareModal = ({ ranker, rank, onClose }) => {
                     </div>
                 </div>
 
-                {/* Platform buttons */}
                 <div className="space-y-3 mb-4">
                     {platforms.map(p => (
                         <motion.button key={p.label} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
@@ -152,7 +152,6 @@ const ShareModal = ({ ranker, rank, onClose }) => {
                     ))}
                 </div>
 
-                {/* Copy button */}
                 <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
                     onClick={copyText}
                     className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border font-bold text-sm transition-all
@@ -171,50 +170,90 @@ const Leaderboard = () => {
     const [loading, setLoading] = useState(true);
     const [myRank, setMyRank] = useState(null);
     const [myData, setMyData] = useState(null);
-    const [shareTarget, setShareTarget] = useState(null); // { ranker, rank }
+    const [shareTarget, setShareTarget] = useState(null);
     const { user } = useAuth();
+    const rankComputedRef = useRef(false); // prevent rank from being overwritten after computed
 
-    // Real-time top-10 — show ALL registered users, ordered by focus time
+    /* ── Real-time top-10 snapshot ── */
     useEffect(() => {
+        setLoading(true);
+        rankComputedRef.current = false;
+
+        let unsub = () => {};
         try {
-            const q = query(collection(db, 'users'), orderBy('totalFocusTime', 'desc'), limit(10));
-            const unsub = onSnapshot(q, snap => {
-                // Include ALL users (even those with 0 focus time) so registered users appear
-                const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            // Order by treesPlanted so the leaderboard reflects trees (the primary metric)
+            // Falls back gracefully if some users have 0 trees
+            const q = query(
+                collection(db, 'users'),
+                orderBy('treesPlanted', 'desc'),
+                limit(10)
+            );
+            unsub = onSnapshot(q, snap => {
+                const data = snap.docs.map((d, i) => ({
+                    id: d.id,
+                    rank: i + 1,
+                    name: d.data().name || d.data().displayName || 'Anonymous',
+                    photoURL: d.data().photoURL || '',
+                    treesPlanted: d.data().treesPlanted ?? 0,
+                    sessionsCount: d.data().sessionsCount ?? 0,
+                    totalFocusTime: d.data().totalFocusTime ?? 0,
+                }));
                 setRankings(data);
-                if (user?.uid) {
+
+                // If the current user is in top-10, set rank immediately
+                if (user?.uid && !rankComputedRef.current) {
                     const idx = data.findIndex(r => r.id === user.uid);
                     if (idx >= 0) {
                         setMyRank(idx + 1);
+                        rankComputedRef.current = true;
                     }
-                    // If not in top 10, we'll compute rank separately below
                 }
                 setLoading(false);
-            }, err => { console.error(err); setLoading(false); });
-            return () => unsub();
-        } catch { setLoading(false); }
+            }, err => {
+                console.error('Leaderboard snapshot error:', err);
+                setLoading(false);
+            });
+        } catch (e) {
+            console.error(e);
+            setLoading(false);
+        }
+        return () => unsub();
     }, [user?.uid]);
 
-    // Fetch current user's own Firestore doc + compute global rank if outside top 10
+    /* ── Fetch current user doc + compute global rank if outside top-10 ── */
     useEffect(() => {
         if (!user?.uid) return;
-        getDoc(doc(db, 'users', user.uid)).then(async snap => {
-            if (snap.exists()) {
-                const data = snap.data();
-                setMyData(data);
 
-                // Compute global rank: count how many users have strictly more focus time
-                try {
-                    const { getDocs, query: fsQuery, collection: col, orderBy: ord, where } = await import('firebase/firestore');
-                    const myFocus = data.totalFocusTime || 0;
-                    // Count users with MORE focus time than me
-                    const aboveQ = fsQuery(col(db, 'users'), where('totalFocusTime', '>', myFocus));
-                    const aboveSnap = await getDocs(aboveQ);
-                    const globalRank = aboveSnap.size + 1;
-                    setMyRank(globalRank);
-                } catch (_) {}
+        const fetchMyData = async () => {
+            try {
+                const snap = await getDoc(doc(db, 'users', user.uid));
+                if (!snap.exists()) return;
+
+                const data = snap.data();
+                setMyData({
+                    ...data,
+                    treesPlanted: data.treesPlanted ?? 0,
+                    sessionsCount: data.sessionsCount ?? 0,
+                    totalFocusTime: data.totalFocusTime ?? 0,
+                });
+
+                // Only compute global rank if user is NOT already found in top-10
+                if (rankComputedRef.current) return;
+
+                // Count users with more trees than me to determine global position
+                const myTrees = data.treesPlanted ?? 0;
+                const aboveSnap = await getDocs(
+                    query(collection(db, 'users'), where('treesPlanted', '>', myTrees))
+                );
+                const globalRank = aboveSnap.size + 1;
+                setMyRank(globalRank);
+                rankComputedRef.current = true;
+            } catch (e) {
+                console.error('Failed to fetch user rank:', e);
             }
-        }).catch(() => {});
+        };
+
+        fetchMyData();
     }, [user?.uid]);
 
     const fmtTime = (s) => {
@@ -224,9 +263,9 @@ const Leaderboard = () => {
     };
 
     const rankStyles = [
-        { bg: 'bg-yellow-500/15', border: 'border-yellow-500/30', text: 'text-yellow-400' },
-        { bg: 'bg-slate-400/10',  border: 'border-slate-400/20',  text: 'text-slate-300' },
-        { bg: 'bg-orange-700/10', border: 'border-orange-700/20', text: 'text-orange-400' },
+        { bg: 'bg-yellow-500/15', border: 'border-yellow-500/30', text: 'text-yellow-400', glow: 'shadow-yellow-500/20' },
+        { bg: 'bg-slate-400/10',  border: 'border-slate-400/20',  text: 'text-slate-300',  glow: 'shadow-slate-400/10' },
+        { bg: 'bg-orange-700/10', border: 'border-orange-700/20', text: 'text-orange-400', glow: 'shadow-orange-700/10' },
     ];
 
     const RankBadge = ({ index }) => {
@@ -281,22 +320,25 @@ const Leaderboard = () => {
                             className="flex flex-col items-center justify-center h-32 gap-3 text-center">
                             <span className="text-4xl opacity-40 filter grayscale">🌲</span>
                             <p className="text-text-muted text-xs font-bold uppercase tracking-widest">No users yet</p>
-                            <p className="text-[10px] text-text-muted/60">Be the first to register and start focusing!</p>
+                            <p className="text-[10px] text-text-muted/60">Be the first to plant a tree!</p>
                         </motion.div>
                     ) : (
                         <AnimatePresence mode="popLayout">
                             {rankings.map((ranker, index) => {
                                 const me = isMe(ranker.id);
-                                const style = rankStyles[index] || { bg: 'bg-white/3', border: 'border-transparent', text: 'text-text-muted' };
+                                const style = rankStyles[index] || { bg: 'bg-white/3', border: 'border-transparent', text: 'text-text-muted', glow: '' };
 
                                 return (
                                     <motion.div key={ranker.id} layout
                                         initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
                                         transition={{ delay: index * 0.04 }}
                                         className={`grid grid-cols-[auto_1fr_auto_auto] gap-2 items-center p-3 rounded-2xl border transition-all group
-                                            ${me ? 'bg-brand/10 border-brand/30' : `${style.bg} ${style.border} hover:bg-white/5`}`}>
+                                            ${me
+                                                ? 'bg-brand/10 border-brand/30 shadow-lg shadow-brand/10'
+                                                : `${style.bg} ${style.border} hover:bg-white/5`
+                                            }`}>
 
-                                        {/* Rank */}
+                                        {/* Rank badge */}
                                         <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0
                                             ${index < 3 ? `${style.bg} border ${style.border}` : 'bg-white/5 border border-transparent'}`}>
                                             <RankBadge index={index} />
@@ -304,10 +346,10 @@ const Leaderboard = () => {
 
                                         {/* Name + avatar */}
                                         <div className="flex items-center gap-2 min-w-0">
-                                            <Avatar photoURL={ranker.photoURL} name={ranker.name || ranker.displayName} size={26} />
+                                            <Avatar photoURL={ranker.photoURL} name={ranker.name} size={26} />
                                             <div className="min-w-0">
                                                 <p className="text-xs font-bold truncate flex items-center gap-1">
-                                                    {ranker.name || ranker.displayName || 'Anonymous'}
+                                                    {ranker.name}
                                                     {me && <span className="text-[7px] bg-brand text-white px-1.5 py-0.5 rounded-full uppercase font-black tracking-wider shrink-0">You</span>}
                                                 </p>
                                                 <p className="text-[9px] text-text-muted">{fmtTime(ranker.totalFocusTime)}</p>
@@ -319,12 +361,11 @@ const Leaderboard = () => {
                                             {ranker.treesPlanted} 🌳
                                         </p>
 
-                                        {/* Sessions + share trigger */}
+                                        {/* Sessions + share */}
                                         <div className="flex items-center gap-1.5 shrink-0">
                                             <p className="text-xs font-black text-text-muted text-right">
-                                                ⚡{ranker.sessionsCount || 0}
+                                                ⚡{ranker.sessionsCount}
                                             </p>
-                                            {/* Share button — appears on hover or always for "me" */}
                                             {me && (
                                                 <button
                                                     onClick={() => setShareTarget({ ranker, rank: index + 1 })}
@@ -341,7 +382,7 @@ const Leaderboard = () => {
                     )}
                 </div>
 
-                {/* Your Rank Footer — always visible when logged in */}
+                {/* ── Your Position Footer (always shown when logged in) ── */}
                 {user && (
                     <div className="mt-4 pt-4 border-t border-white/5">
                         <div className="flex items-center gap-3">
@@ -352,28 +393,32 @@ const Leaderboard = () => {
                                     <span className="text-[7px] bg-brand text-white px-1.5 py-0.5 rounded-full uppercase font-black tracking-wider shrink-0">You</span>
                                 </p>
                                 <p className="text-[10px] text-text-muted">
-                                    {myData?.treesPlanted ?? 0} 🌳 · ⚡{myData?.sessionsCount ?? 0} · {fmtTime(myData?.totalFocusTime)}
+                                    {myData?.treesPlanted ?? 0} 🌳 &nbsp;·&nbsp; ⚡{myData?.sessionsCount ?? 0} &nbsp;·&nbsp; {fmtTime(myData?.totalFocusTime)}
                                 </p>
                             </div>
                             <div className="flex items-center gap-2">
                                 <div className="text-right shrink-0">
                                     <p className="text-[10px] text-text-muted uppercase tracking-widest font-bold">Your Rank</p>
                                     <p className="text-sm font-black text-brand">
-                                        {myRank ? `#${myRank}` : '—'}
+                                        {myRank != null ? `#${myRank}` : (
+                                            <span className="inline-block w-4 h-4 border border-brand border-t-transparent rounded-full animate-spin align-middle" />
+                                        )}
                                     </p>
                                 </div>
-                                {/* Share own achievement */}
                                 <button
-                                    onClick={() => setShareTarget({ ranker: { ...myData, photoURL: myPhoto, name: myName }, rank: myRank ?? '?' })}
+                                    onClick={() => setShareTarget({
+                                        ranker: { ...myData, photoURL: myPhoto, name: myName },
+                                        rank: myRank ?? '?'
+                                    })}
                                     className="p-2 rounded-xl bg-brand/10 text-brand hover:bg-brand/20 transition-all"
                                     title="Share your rank">
                                     <Share2 size={14} />
                                 </button>
                             </div>
                         </div>
-                        {!myData?.totalFocusTime && (
+                        {!(myData?.treesPlanted) && (
                             <p className="text-[10px] text-text-muted/60 mt-2 text-center">
-                                🌱 Start a focus session to climb the leaderboard!
+                                🌱 Complete a focus session to plant your first tree!
                             </p>
                         )}
                     </div>

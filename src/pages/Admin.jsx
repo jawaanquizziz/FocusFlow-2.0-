@@ -47,6 +47,7 @@ const Admin = () => {
     const [sortDir, setSortDir] = useState('desc');
     const [deleting, setDeleting] = useState(null);
     const [confirmDelete, setConfirmDelete] = useState(null);
+    const [error, setError] = useState(null);
 
     const isAdmin = user && (
         ADMIN_EMAILS.includes(user.email) ||
@@ -65,8 +66,10 @@ const Admin = () => {
                 return bTime - aTime;
             });
             setUsers(userList);
+            setUsers(userList);
         } catch (e) {
-            console.error(e);
+            console.error('Admin fetch error:', e);
+            setError(e.message);
         } finally {
             setLoading(false);
         }
@@ -199,6 +202,12 @@ const Admin = () => {
                     <div className="flex items-center justify-center py-20 gap-3">
                         <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
                         <p className="text-text-muted text-xs font-bold uppercase tracking-widest">Loading users...</p>
+                    </div>
+                ) : error ? (
+                    <div className="text-center py-16 px-6">
+                        <AlertTriangle size={32} className="text-red-400/50 mx-auto mb-3" />
+                        <p className="text-red-400 text-xs font-bold uppercase tracking-widest mb-2">Error Loading Users</p>
+                        <p className="text-text-muted text-xs bg-red-500/10 p-3 rounded-xl max-w-lg mx-auto border border-red-500/20">{error}</p>
                     </div>
                 ) : filtered.length === 0 ? (
                     <div className="text-center py-16">

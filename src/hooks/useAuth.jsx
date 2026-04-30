@@ -6,6 +6,7 @@ import {
   signOut,
   updateProfile,
   signInWithPopup,
+  signInAnonymously,
 } from 'firebase/auth';
 import { auth, db, googleProvider } from '../services/firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
@@ -148,10 +149,27 @@ export const AuthProvider = ({ children }) => {
         return firebaseUser;
     };
 
+    const signInAsGuest = async (name) => {
+        const result = await signInAnonymously(auth);
+        await updateProfile(result.user, { displayName: name });
+        try {
+            await setDoc(doc(db, 'users', result.user.uid), {
+                name: name,
+                email: 'Guest',
+                createdAt: new Date().toISOString(),
+                totalFocusTime: 0,
+                treesPlanted: 0,
+                sessionsCount: 0,
+                isGuest: true,
+            }, { merge: true });
+        } catch (_) {}
+        return result.user;
+    };
+
     const logout = () => signOut(auth);
 
     return (
-        <AuthContext.Provider value={{ user, loading, register, login, signInWithGoogle, logout }}>
+        <AuthContext.Provider value={{ user, loading, register, login, signInWithGoogle, signInAsGuest, logout }}>
             {children}
         </AuthContext.Provider>
     );

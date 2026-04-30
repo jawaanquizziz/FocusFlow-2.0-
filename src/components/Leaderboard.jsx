@@ -171,6 +171,7 @@ const Leaderboard = () => {
     const [myRank, setMyRank] = useState(null);
     const [myData, setMyData] = useState(null);
     const [shareTarget, setShareTarget] = useState(null);
+    const [error, setError] = useState(null);
     const { user } = useAuth();
     const rankComputedRef = useRef(false); // prevent rank from being overwritten after computed
 
@@ -211,10 +212,12 @@ const Leaderboard = () => {
                 setLoading(false);
             }, err => {
                 console.error('Leaderboard snapshot error:', err);
+                setError(err.message);
                 setLoading(false);
             });
         } catch (e) {
             console.error(e);
+            setError(e.message);
             setLoading(false);
         }
         return () => unsub();
@@ -314,6 +317,12 @@ const Leaderboard = () => {
                         <div className="flex flex-col items-center justify-center h-32 gap-3">
                             <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
                             <p className="text-text-muted text-xs font-bold uppercase tracking-widest animate-pulse">Loading...</p>
+                        </div>
+                    ) : error ? (
+                        <div className="flex flex-col items-center justify-center h-32 gap-3 text-center px-4">
+                            <span className="text-4xl">⚠️</span>
+                            <p className="text-red-400 text-xs font-bold uppercase tracking-widest">Connection Error</p>
+                            <p className="text-[10px] text-text-muted">{error}</p>
                         </div>
                     ) : rankings.length === 0 ? (
                         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}

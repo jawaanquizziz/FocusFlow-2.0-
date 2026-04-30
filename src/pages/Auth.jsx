@@ -191,7 +191,7 @@ const features = [
 
 /* ─── Auth Page ─────────────────────────────────────────────────── */
 const Auth = () => {
-    const [isLogin, setIsLogin] = useState(true);
+    const [authMode, setAuthMode] = useState('login'); // 'login', 'register', 'guest'
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [name, setName] = useState('');
@@ -200,17 +200,26 @@ const Auth = () => {
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
     const [legalModal, setLegalModal] = useState(null); // 'terms' | 'privacy' | null
 
-    const { login, register, signInWithGoogle } = useAuth();
+    const { login, register, signInWithGoogle, signInAsGuest } = useAuth();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
         setIsSubmitting(true);
         try {
-            if (isLogin) await login(email, password);
-            else await register(email, password, name);
+            if (authMode === 'login') await login(email, password);
+            else if (authMode === 'register') await register(email, password, name);
+            else if (authMode === 'guest') {
+                if (!name.trim()) throw new Error('Please enter your name.');
+                await signInAsGuest(name);
+            }
         } catch (err) {
-            setError(err.message.replace('Firebase: ', '').replace(/\(.*\)\.?$/, '').trim());
+            console.error('Authentication Error:', err);
+            let userMessage = err.message.replace('Firebase: ', '').replace(/\(.*\)\.?$/, '').trim();
+            if (userMessage === 'Error' && err.code === 'auth/operation-not-allowed') {
+                userMessage = 'Anonymous sign-in is disabled. Please enable it in Firebase Console.';
+            }
+            setError(userMessage || 'An unexpected error occurred. Check console for details.');
         } finally {
             setIsSubmitting(false);
         }
@@ -325,76 +334,92 @@ const Auth = () => {
 
                     <div className="mb-8">
                         <AnimatePresence mode="wait">
-                            <motion.h2 key={isLogin ? 'login' : 'register'}
+                            <motion.h2 key={authMode}
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }}
                                 className="text-3xl font-bold text-white mb-2"
                                 style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
-                                {isLogin ? 'Sign in' : 'Create account'}
+                                {authMode === 'login' ? 'Sign in' : authMode === 'register' ? 'Create account' : 'Guest Mode'}
                             </motion.h2>
                         </AnimatePresence>
                         <p className="text-slate-400 text-sm">
-                            {isLogin ? 'Welcome back! Ready to focus today?' : 'Join thousands of students leveling up.'}
+                            {authMode === 'login' ? 'Welcome back! Ready to focus today?' : authMode === 'register' ? 'Join thousands of students leveling up.' : 'Enter your name to start tracking your focus immediately.'}
                         </p>
                     </div>
 
                     {/* Google Button */}
-                    <motion.button
-                        onClick={handleGoogleSignIn}
-                        disabled={isGoogleLoading || isSubmitting}
-                        whileHover={{ scale: 1.015 }} whileTap={{ scale: 0.985 }}
-                        className="w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl font-semibold text-sm text-gray-800 bg-white transition-all shadow-lg hover:shadow-xl disabled:opacity-60 mb-6"
-                        style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.25), 0 1px 0 rgba(255,255,255,0.8) inset' }}>
-                        {isGoogleLoading
-                            ? <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                            : <GoogleLogo />}
-                        <span>{isGoogleLoading ? 'Opening Google...' : 'Continue with Google'}</span>
-                    </motion.button>
+                    <AnimatePresence>
+                        {authMode !== 'guest' && (
+                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                                <motion.button
+                                    onClick={handleGoogleSignIn}
+                                    disabled={isGoogleLoading || isSubmitting}
+                                    whileHover={{ scale: 1.015 }} whileTap={{ scale: 0.985 }}
+                                    className="w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl font-semibold text-sm text-gray-800 bg-white transition-all shadow-lg hover:shadow-xl disabled:opacity-60 mb-6 mt-1"
+                                    style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.25), 0 1px 0 rgba(255,255,255,0.8) inset' }}>
+                                    {isGoogleLoading
+                                        ? <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                                        : <GoogleLogo />}
+                                    <span>{isGoogleLoading ? 'Opening Google...' : 'Continue with Google'}</span>
+                                </motion.button>
 
-                    {/* Divider */}
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="flex-1 divider-glow" />
-                        <span className="text-slate-500 text-xs font-semibold uppercase tracking-widest">or</span>
-                        <div className="flex-1 divider-glow" />
-                    </div>
+                                {/* Divider */}
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="flex-1 divider-glow" />
+                                    <span className="text-slate-500 text-xs font-semibold uppercase tracking-widest">or</span>
+                                    <div className="flex-1 divider-glow" />
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
 
                     {/* Form */}
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <AnimatePresence>
-                            {!isLogin && (
+                            {(authMode === 'register' || authMode === 'guest') && (
                                 <motion.div
                                     initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
-                                    exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.25 }}>
-                                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Full Name</label>
-                                    <div className="relative">
-                                        <User size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
-                                        <input type="text" required value={name} onChange={e => setName(e.target.value)}
-                                            placeholder="Your full name"
-                                            className="input-premium w-full rounded-xl py-3.5 pl-11 pr-4 text-sm text-white font-medium placeholder:text-slate-600" />
+                                    exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.25 }}
+                                    className="overflow-hidden"
+                                >
+                                    <div className={authMode === 'guest' ? "pb-2" : "pb-0"}>
+                                        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Full Name</label>
+                                        <div className="relative">
+                                            <User size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
+                                            <input type="text" required value={name} onChange={e => setName(e.target.value)}
+                                                placeholder={authMode === 'guest' ? "What should we call you?" : "Your full name"}
+                                                className="input-premium w-full rounded-xl py-3.5 pl-11 pr-4 text-sm text-white font-medium placeholder:text-slate-600" />
+                                        </div>
                                     </div>
                                 </motion.div>
                             )}
                         </AnimatePresence>
 
-                        <div>
-                            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Email</label>
-                            <div className="relative">
-                                <Mail size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
-                                <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
-                                    placeholder="name@domain.com"
-                                    className="input-premium w-full rounded-xl py-3.5 pl-11 pr-4 text-sm text-white font-medium placeholder:text-slate-600" />
-                            </div>
-                        </div>
+                        <AnimatePresence>
+                            {authMode !== 'guest' && (
+                                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.25 }} className="space-y-4 overflow-hidden">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Email</label>
+                                        <div className="relative">
+                                            <Mail size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
+                                            <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
+                                                placeholder="name@domain.com"
+                                                className="input-premium w-full rounded-xl py-3.5 pl-11 pr-4 text-sm text-white font-medium placeholder:text-slate-600" />
+                                        </div>
+                                    </div>
 
-                        <div>
-                            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Password</label>
-                            <div className="relative">
-                                <Lock size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
-                                <input type="password" required value={password} onChange={e => setPassword(e.target.value)}
-                                    placeholder="••••••••"
-                                    className="input-premium w-full rounded-xl py-3.5 pl-11 pr-4 text-sm text-white font-medium placeholder:text-slate-600" />
-                            </div>
-                        </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Password</label>
+                                        <div className="relative">
+                                            <Lock size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
+                                            <input type="password" required value={password} onChange={e => setPassword(e.target.value)}
+                                                placeholder="••••••••"
+                                                className="input-premium w-full rounded-xl py-3.5 pl-11 pr-4 text-sm text-white font-medium placeholder:text-slate-600" />
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
 
                         <AnimatePresence>
                             {error && (
@@ -410,19 +435,42 @@ const Auth = () => {
                             className="btn-brand shimmer-btn w-full text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 text-sm mt-2 disabled:opacity-50">
                             {isSubmitting
                                 ? <div className="w-5 h-5 border-2 border-white/60 border-t-white rounded-full animate-spin" />
-                                : <><span>{isLogin ? 'Sign In' : 'Create Account'}</span><ArrowRight size={16} /></>}
+                                : <><span>{authMode === 'login' ? 'Sign In' : authMode === 'register' ? 'Create Account' : 'Continue as Guest'}</span><ArrowRight size={16} /></>}
                         </motion.button>
                     </form>
 
-                    {/* Toggle login/register */}
-                    <p className="mt-6 text-center text-slate-400 text-sm">
-                        {isLogin ? 'New to FocusFlow?' : 'Already have an account?'}{' '}
-                        <button onClick={() => { setIsLogin(!isLogin); setError(''); }}
-                            className="font-bold transition-colors hover:opacity-80"
-                            style={{ color: 'var(--brand-color)' }}>
-                            {isLogin ? 'Create account' : 'Sign in'}
-                        </button>
-                    </p>
+                    {/* Toggle login/register/guest */}
+                    <div className="mt-6 flex flex-col gap-3 text-center text-sm">
+                        <p className="text-slate-400">
+                            {authMode === 'login' ? 'New to FocusFlow?' : 'Already have an account?'}{' '}
+                            <button type="button" onClick={() => { setAuthMode(authMode === 'login' ? 'register' : 'login'); setError(''); }}
+                                className="font-bold transition-colors hover:opacity-80"
+                                style={{ color: 'var(--brand-color)' }}>
+                                {authMode === 'login' ? 'Create account' : 'Sign in'}
+                            </button>
+                        </p>
+                        
+                        {authMode !== 'guest' && (
+                            <p className="text-slate-400">
+                                Just want to look around?{' '}
+                                <button type="button" onClick={() => { setAuthMode('guest'); setError(''); }}
+                                    className="font-bold transition-colors hover:opacity-80"
+                                    style={{ color: 'var(--brand-color)' }}>
+                                    Continue as Guest
+                                </button>
+                            </p>
+                        )}
+                        {authMode === 'guest' && (
+                            <p className="text-slate-400">
+                                Want to save your progress permanently?{' '}
+                                <button type="button" onClick={() => { setAuthMode('register'); setError(''); }}
+                                    className="font-bold transition-colors hover:opacity-80"
+                                    style={{ color: 'var(--brand-color)' }}>
+                                    Create account
+                                </button>
+                            </p>
+                        )}
+                    </div>
 
                     {/* Legal footer — opens modal on click */}
                     <p className="mt-6 text-center text-slate-600 text-xs">

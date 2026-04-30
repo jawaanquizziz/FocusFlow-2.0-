@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Settings as SettingsIcon, Clock, Calendar, Bell, Palette, LogOut, TreePine, Shield, UserPlus, X, Share2, Link as LinkIcon, Check } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Settings as SettingsIcon, Clock, Calendar, Bell, Palette, LogOut, TreePine, Shield, UserPlus, X, Share2, Link as LinkIcon, Check, BarChart2, TrendingUp, Zap } from 'lucide-react';
 import { useTimer } from '../hooks/useTimer.jsx';
 import TimerDisplay from '../components/TimerDisplay';
 import TodoList from '../components/TodoList';
@@ -22,8 +22,10 @@ const ADMIN_EMAILS = ['jawaan25fcrit@gmail.com'];
 /* ─── Invite Friends Modal ────────────────────────────────────────────── */
 const InviteModal = ({ onClose, user }) => {
     const [copied, setCopied] = useState(false);
-    const shareText = `🌳 Join me on FocusFlow to plant trees and boost your productivity! Let's crush our goals together 🚀 #FocusFlow #DeepWork #Pomodoro`;
-    const shareUrl = typeof window !== 'undefined' ? window.location.origin : 'https://focusflow.app';
+    const [isCapturing, setIsCapturing] = useState(false);
+    const captureRef = useRef(null);
+    const shareText = `🌳 Join me on FocusFlow! I'm using it to plant trees while I work. It's a game-changer for deep focus! 🚀`;
+    const shareUrl = `https://focusflow.app`;
 
     const copyText = async () => {
         try {
@@ -36,37 +38,156 @@ const InviteModal = ({ onClose, user }) => {
         }
     };
 
+    const shareOnSocial = (platform) => {
+        const text = encodeURIComponent(shareText);
+        const url = encodeURIComponent(shareUrl);
+        const platforms = {
+            whatsapp: `https://wa.me/?text=${text}%20${url}`,
+            twitter: `https://twitter.com/intent/tweet?text=${text}&url=${url}`,
+            facebook: `https://www.facebook.com/sharer/sharer.php?u=${url}`,
+            linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${url}`,
+            instagram: `https://www.instagram.com/`, // Instagram doesn't support direct text sharing via URL like others
+            reddit: `https://www.reddit.com/submit?title=${text}&url=${url}`
+        };
+        window.open(platforms[platform], '_blank');
+    };
+
+    const shareAsImage = async () => {
+        if (!captureRef.current) return;
+        setIsCapturing(true);
+        try {
+            const html2canvas = (await import('html2canvas')).default;
+            const canvas = await html2canvas(captureRef.current, {
+                backgroundColor: '#0f172a',
+                scale: 3,
+                useCORS: true,
+                logging: false,
+                borderRadius: 40
+            });
+            
+            canvas.toBlob(async (blob) => {
+                if (!blob) return;
+                try {
+                    const file = new File([blob], 'focusflow-invite.png', { type: 'image/png' });
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        await navigator.share({
+                            files: [file],
+                            title: 'Join me on FocusFlow 🌳',
+                            text: `${shareText}\n${shareUrl}`
+                        });
+                    } else {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'focusflow-invite-card.png';
+                        a.click();
+                        URL.revokeObjectURL(url);
+                    }
+                } catch (e) {
+                    console.error('Sharing failed', e);
+                }
+                setIsCapturing(false);
+            }, 'image/png');
+        } catch (e) {
+            console.error('Canvas capture failed', e);
+            setIsCapturing(false);
+        }
+    };
+
     return (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-2xl"
             onClick={onClose}
         >
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+            <motion.div initial={{ scale: 0.9, y: 40 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 40 }}
                 onClick={e => e.stopPropagation()}
-                className="bg-[#0f172a] border border-white/10 w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden"
+                className="bg-[#0f172a] border border-white/10 w-full max-w-xl rounded-[3.5rem] p-8 sm:p-12 shadow-[0_64px_128px_-20px_rgba(0,0,0,0.8)] relative overflow-hidden"
             >
-                <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-3">
-                        <div className="p-3 bg-brand/10 rounded-2xl"><UserPlus size={20} className="text-brand" /></div>
+                {/* Animated Background Orbs */}
+                <div className="absolute top-0 right-0 w-80 h-80 bg-brand/20 blur-[120px] rounded-full pointer-events-none -mr-40 -mt-40 animate-pulse" />
+                <div className="absolute bottom-0 left-0 w-80 h-80 bg-emerald-500/20 blur-[120px] rounded-full pointer-events-none -ml-40 -mb-40" />
+
+                <div className="flex items-center justify-between mb-10 relative z-10">
+                    <div className="flex items-center gap-4">
+                        <div className="p-4 bg-gradient-to-br from-brand to-brand-dark rounded-2xl text-white shadow-xl shadow-brand/20"><UserPlus size={24} /></div>
                         <div>
-                            <h3 className="font-black text-base">Invite Friends</h3>
-                            <p className="text-[10px] text-text-muted uppercase tracking-widest font-bold">Grow together 🌳</p>
+                            <h3 className="font-black text-2xl tracking-tight">Invite to <span className="text-brand">Grove</span></h3>
+                            <p className="text-[10px] text-text-muted uppercase tracking-[0.3em] font-black opacity-60">Building focus together</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/5 text-text-muted hover:text-white transition-all">
-                        <X size={18} />
+                    <button onClick={onClose} className="p-3 rounded-2xl bg-white/5 text-text-muted hover:text-white hover:bg-white/10 transition-all border border-white/5">
+                        <X size={24} />
                     </button>
                 </div>
-                <div className="bg-gradient-to-br from-brand/10 to-emerald-500/10 border border-brand/20 rounded-2xl p-4 mb-6">
-                    <p className="text-sm font-medium text-white mb-2">{shareText}</p>
-                    <p className="text-[10px] text-text-muted font-mono">{shareUrl}</p>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                    {/* Left side: The Card Preview */}
+                    <div className="relative group flex flex-col items-center">
+                        <div className="absolute -inset-2 bg-gradient-to-r from-brand to-emerald-500 rounded-[3.5rem] blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
+                        <div ref={captureRef} className="relative w-full bg-[#0f172a] border border-white/5 rounded-[3rem] p-10 overflow-hidden shadow-2xl flex flex-col items-center text-center">
+                            <div className="absolute inset-0 opacity-[0.05] pointer-events-none" style={{ backgroundImage: `radial-gradient(var(--brand-color) 1px, transparent 1px)`, backgroundSize: '16px 16px' }} />
+                            
+                            <motion.div animate={{ y: [0, -10, 0] }} transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }} className="mb-6 relative z-10">
+                                <div className="p-6 bg-white/5 border border-white/10 rounded-[2.5rem] backdrop-blur-xl shadow-inner">
+                                    <TreePine size={64} className="text-brand" />
+                                </div>
+                            </motion.div>
+                            
+                            <h2 className="text-4xl font-black mb-1 tracking-tighter relative z-10">Focus<span className="text-brand">Flow</span></h2>
+                            <div className="px-4 py-1.5 bg-brand/10 border border-brand/20 rounded-full mb-8 relative z-10">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-brand">Deep Work Revolution</p>
+                            </div>
+                            
+                            <p className="text-xl font-bold text-white mb-10 leading-tight relative z-10">
+                                "Join me and grow your forest while crushing goals."
+                            </p>
+
+                            <div className="w-full flex flex-col gap-2 relative z-10">
+                                <div className="px-6 py-4 bg-brand text-white rounded-2xl font-black text-xs uppercase tracking-[0.3em] shadow-xl shadow-brand/20">
+                                    JOIN THE GROVE
+                                </div>
+                                <p className="text-[9px] text-slate-500 font-black uppercase tracking-[0.5em]">FF-{user?.uid?.slice(0,4).toUpperCase() || 'FLOW'}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right side: Social & Actions */}
+                    <div className="flex flex-col justify-center gap-10 relative z-10">
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted mb-6 opacity-60">Share via Socials</p>
+                            <div className="grid grid-cols-3 gap-5">
+                                {[
+                                    { id: 'whatsapp', icon: (props) => <svg viewBox="0 0 24 24" {...props}><path fill="white" d="M12.012 2c-5.508 0-9.987 4.479-9.987 9.987 0 1.763.459 3.421 1.264 4.868L2 22l5.316-1.393c1.401.763 3.003 1.201 4.696 1.201 5.508 0 9.987-4.479 9.987-9.987 0-5.508-4.479-9.987-9.987-9.987zm5.541 14.152c-.23.649-1.319 1.203-1.815 1.282-.496.079-1.127.118-3.053-.642-2.455-.968-4.041-3.468-4.161-3.626-.12-.158-1.026-1.365-1.026-2.603 0-1.238.649-1.848.88-2.094.231-.246.505-.307.674-.307.169 0 .338 0 .484.007.152.007.359-.058.562.433.203.491.694 1.691.754 1.815.061.123.101.267.021.433-.081.165-.121.267-.241.407-.12.14-.253.313-.362.422-.119.119-.244.249-.105.487.14.238.62 1.024 1.332 1.657.917.817 1.691 1.07 1.929 1.189.238.119.378.1.518-.06.14-.16.6-0.7.759-.938.16-.238.319-.203.539-.12.22.083 1.393.657 1.632.776.24.12.399.179.459.282.06.103.06.598-.17 1.247z"/></svg>, color: 'bg-[#25D366]' },
+                                    { id: 'twitter', icon: (props) => <svg viewBox="0 0 24 24" {...props}><path fill="white" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.045 4.126H5.078z"/></svg>, color: 'bg-black' },
+                                    { id: 'facebook', icon: (props) => <svg viewBox="0 0 24 24" {...props}><path fill="white" d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>, color: 'bg-[#1877F2]' },
+                                    { id: 'linkedin', icon: (props) => <svg viewBox="0 0 24 24" {...props}><path fill="white" d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0z"/></svg>, color: 'bg-[#0077b5]' },
+                                    { id: 'instagram', icon: (props) => <svg viewBox="0 0 24 24" {...props}><path fill="white" d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>, color: 'bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7]' },
+                                    { id: 'reddit', icon: (props) => <svg viewBox="0 0 24 24" {...props}><path fill="white" d="M24 11.5c0-1.654-1.346-3-3-3-.674 0-1.294.232-1.794.613-2.022-1.416-4.756-2.316-7.739-2.433l1.373-6.442 4.49.954c.045.845.741 1.513 1.595 1.513 1.05 0 1.904-.855 1.904-1.905 0-1.05-.854-1.904-1.904-1.904-.772 0-1.439.462-1.737 1.121l-4.981-1.058c-.143-.031-.289.043-.342.181l-1.579 7.414c-3.07.098-5.888.995-7.986 2.449-.496-.395-1.125-.636-1.805-.636-1.654 0-3 1.346-3 3 0 1.157.662 2.155 1.624 2.65-.015.115-.024.232-.024.35 0 3.859 4.709 7 10.5 7s10.5-3.141 10.5-7c0-.114-.009-.228-.023-.341.97-.492 1.637-1.492 1.637-2.659zm-16.142 3.39c-.773 0-1.4-.627-1.4-1.4s.627-1.4 1.4-1.4 1.4.627 1.4 1.4-.627 1.4-1.4 1.4zm10.742 4.444c-1.391 1.391-3.957 1.503-4.6 1.503-.644 0-3.21-.112-4.601-1.503-.138-.138-.138-.362 0-.5.137-.138.361-.138.499 0 1.096 1.096 3.197 1.253 4.102 1.253.903 0 3.004-.157 4.101-1.253.138-.138.361-.138.499 0 .138.138.138.362 0 .5zm-.101-4.444c-.773 0-1.4-.627-1.4-1.4s.627-1.4 1.4-1.4 1.4.627 1.4 1.4-.627 1.4-1.4 1.4z"/></svg>, color: 'bg-[#FF4500]' }
+                                ].map((p) => (
+                                    <button key={p.id} onClick={() => shareOnSocial(p.id)} className={`${p.color} p-5 rounded-2xl text-white hover:scale-110 active:scale-95 transition-all shadow-xl flex items-center justify-center border border-white/10 group/btn`}>
+                                        <p.icon className="w-8 h-8 group-hover/btn:scale-110 transition-transform" />
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted opacity-60">Actions</p>
+                            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={shareAsImage} disabled={isCapturing}
+                                className={`w-full flex items-center justify-center gap-3 px-8 py-5 rounded-2xl font-black text-sm transition-all text-white shadow-2xl
+                                    ${isCapturing ? 'bg-brand/50 cursor-not-allowed' : 'bg-brand hover:bg-brand/90 hover:shadow-brand/40'}`}>
+                                {isCapturing ? <div className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin" /> : <Share2 size={20} />}
+                                {isCapturing ? 'GENERATING CARD...' : 'SAVE INVITE CARD'}
+                            </motion.button>
+                            
+                            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={copyText}
+                                className={`w-full flex items-center justify-center gap-3 px-8 py-5 rounded-2xl border-2 font-black text-sm transition-all relative ${copied ? 'bg-green-500/20 border-green-500/30 text-green-400' : 'bg-white/5 border-white/10 text-text-muted hover:text-white hover:bg-white/10'}`}>
+                                {copied ? <Check size={20} /> : <LinkIcon size={20} />}
+                                {copied ? 'LINK COPIED' : 'COPY INVITE LINK'}
+                            </motion.button>
+                        </div>
+                    </div>
                 </div>
-                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-                    onClick={copyText}
-                    className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border font-bold text-sm transition-all relative ${copied ? 'bg-green-500/20 border-green-500/30 text-green-400' : 'bg-white/5 border-white/10 text-text-muted hover:text-white'}`}>
-                    {copied ? <Check size={16} /> : <LinkIcon size={16} />}
-                    {copied ? 'Copied!' : 'Copy Link & Text'}
-                </motion.button>
             </motion.div>
         </motion.div>
     );
@@ -463,17 +584,62 @@ const Home = () => {
             </motion.div>
 
             <motion.div variants={itemVariants}>
-                <Link to="/planner" className="glass p-6 rounded-[2.5rem] flex items-center justify-between hover:border-brand/40 transition-all group relative">
+                <Link to="/reports" className="glass p-8 rounded-[2.5rem] flex flex-col gap-6 hover:border-brand/40 transition-all group relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-brand/10 blur-[80px] rounded-full -mr-20 -mt-20 group-hover:bg-brand/20 transition-colors" />
+                    
+                    <div className="flex items-center justify-between relative z-10">
+                        <div className="flex items-center gap-5">
+                            <div className="p-4 bg-brand/10 rounded-2xl text-brand group-hover:scale-110 transition-transform duration-500">
+                                <BarChart2 size={32} />
+                            </div>
+                            <div>
+                                <h3 className="text-2xl font-black">Performance <span className="text-brand">Report</span></h3>
+                                <p className="text-text-muted text-sm font-bold uppercase tracking-widest opacity-60">Your Productivity Hub</p>
+                            </div>
+                        </div>
+                        <div className="p-3 bg-white/5 rounded-full text-brand opacity-0 group-hover:opacity-100 transition-all duration-500 -translate-x-4 group-hover:translate-x-0">
+                            <TrendingUp size={20} />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4 relative z-10">
+                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center justify-center text-center hover:bg-white/10 transition-colors">
+                            <Clock size={16} className="text-brand mb-2" />
+                            <p className="text-[10px] font-black uppercase text-text-muted mb-1">Total</p>
+                            <p className="text-sm font-black text-white">{formatFocusTime(totalFocusSeconds).split(' ')[0]}</p>
+                        </div>
+                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center justify-center text-center hover:bg-white/10 transition-colors">
+                            <TreePine size={16} className="text-emerald-400 mb-2" />
+                            <p className="text-[10px] font-black uppercase text-text-muted mb-1">Trees</p>
+                            <p className="text-sm font-black text-white">
+                                {JSON.parse(localStorage.getItem('focusSessions') || '[]').filter(s => s.mode === 'pomodoro').length}
+                            </p>
+                        </div>
+                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center justify-center text-center hover:bg-white/10 transition-colors">
+                            <Zap size={16} className="text-yellow-400 mb-2" />
+                            <p className="text-[10px] font-black uppercase text-text-muted mb-1">Rank</p>
+                            <p className="text-sm font-black text-white">Elite</p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-brand text-xs font-black uppercase tracking-[0.2em] relative z-10">
+                        View Detailed Insights <span className="text-lg group-hover:translate-x-2 transition-transform">→</span>
+                    </div>
+                </Link>
+            </motion.div>
+
+            <motion.div variants={itemVariants}>
+                <Link to="/planner" className="glass p-6 rounded-[2.5rem] flex items-center justify-between hover:border-emerald-500/40 transition-all group relative">
                     <div className="flex items-center gap-5">
-                        <div className="p-3.5 bg-brand/10 rounded-2xl text-brand group-hover:rotate-12 transition-transform duration-500">
+                        <div className="p-3.5 bg-emerald-500/10 rounded-2xl text-emerald-400 group-hover:rotate-12 transition-transform duration-500">
                             <Calendar size={28} />
                         </div>
                         <div>
                             <h3 className="text-xl font-bold">Planner</h3>
-                            <p className="text-text-muted text-sm">Schedule your daily rhythm</p>
+                            <p className="text-text-muted text-sm font-medium">Schedule your daily rhythm</p>
                         </div>
                     </div>
-                    <div className="text-brand opacity-0 group-hover:opacity-100 transition-all duration-500 font-bold text-2xl pr-2">→</div>
+                    <div className="text-emerald-400 opacity-0 group-hover:opacity-100 transition-all duration-500 font-black text-2xl pr-2">→</div>
                 </Link>
             </motion.div>
         </div>

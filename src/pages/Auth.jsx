@@ -348,30 +348,29 @@ const Auth = () => {
                     </div>
 
                     {/* Google Button */}
-                    <AnimatePresence>
-                        {authMode !== 'guest' && (
-                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-                                <motion.button
-                                    onClick={handleGoogleSignIn}
-                                    disabled={isGoogleLoading || isSubmitting}
-                                    whileHover={{ scale: 1.015 }} whileTap={{ scale: 0.985 }}
-                                    className="w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl font-semibold text-sm text-gray-800 bg-white transition-all shadow-lg hover:shadow-xl disabled:opacity-60 mb-6 mt-1"
-                                    style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.25), 0 1px 0 rgba(255,255,255,0.8) inset' }}>
-                                    {isGoogleLoading
-                                        ? <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                                        : <GoogleLogo />}
-                                    <span>{isGoogleLoading ? 'Opening Google...' : 'Continue with Google'}</span>
-                                </motion.button>
+                    {authMode !== 'guest' && (
+                        <div>
+                            <motion.button
+                                type="button"
+                                onClick={handleGoogleSignIn}
+                                disabled={isGoogleLoading || isSubmitting}
+                                whileHover={{ scale: 1.015 }} whileTap={{ scale: 0.985 }}
+                                className="w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl font-semibold text-sm text-gray-800 bg-white transition-all shadow-lg hover:shadow-xl disabled:opacity-60 mb-6 mt-1"
+                                style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.25), 0 1px 0 rgba(255,255,255,0.8) inset' }}>
+                                {isGoogleLoading
+                                    ? <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                                    : <GoogleLogo />}
+                                <span>{isGoogleLoading ? 'Opening Google...' : 'Continue with Google'}</span>
+                            </motion.button>
 
-                                {/* Divider */}
-                                <div className="flex items-center gap-3 mb-6">
-                                    <div className="flex-1 divider-glow" />
-                                    <span className="text-slate-500 text-xs font-semibold uppercase tracking-widest">or</span>
-                                    <div className="flex-1 divider-glow" />
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
+                            {/* Divider */}
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="flex-1 divider-glow" />
+                                <span className="text-slate-500 text-xs font-semibold uppercase tracking-widest">or</span>
+                                <div className="flex-1 divider-glow" />
+                            </div>
+                        </div>
+                    )}
 
                     {/* Form */}
                     <form onSubmit={handleSubmit} className="space-y-4">

@@ -50,7 +50,8 @@ export const AuthProvider = ({ children }) => {
                 name, email,
                 createdAt: new Date().toISOString(),
                 totalFocusTime: 0,
-                treesPlanted: 0
+                treesPlanted: 0,
+                sessionsCount: 0,
             });
         } catch (_) {}
         return result.user;

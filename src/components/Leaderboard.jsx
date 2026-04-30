@@ -174,16 +174,20 @@ const Leaderboard = () => {
     const [shareTarget, setShareTarget] = useState(null); // { ranker, rank }
     const { user } = useAuth();
 
-    // Real-time top-10
+    // Real-time top-10 — show ALL registered users, ordered by focus time
     useEffect(() => {
         try {
             const q = query(collection(db, 'users'), orderBy('totalFocusTime', 'desc'), limit(10));
             const unsub = onSnapshot(q, snap => {
-                const data = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(u => (u.totalFocusTime || 0) > 0);
+                // Include ALL users (even those with 0 focus time) so registered users appear
+                const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                 setRankings(data);
                 if (user?.uid) {
                     const idx = data.findIndex(r => r.id === user.uid);
-                    setMyRank(idx >= 0 ? idx + 1 : null);
+                    if (idx >= 0) {
+                        setMyRank(idx + 1);
+                    }
+                    // If not in top 10, we'll compute rank separately below
                 }
                 setLoading(false);
             }, err => { console.error(err); setLoading(false); });
@@ -191,10 +195,26 @@ const Leaderboard = () => {
         } catch { setLoading(false); }
     }, [user?.uid]);
 
-    // Fetch current user's own Firestore doc
+    // Fetch current user's own Firestore doc + compute global rank if outside top 10
     useEffect(() => {
         if (!user?.uid) return;
-        getDoc(doc(db, 'users', user.uid)).then(snap => { if (snap.exists()) setMyData(snap.data()); }).catch(() => {});
+        getDoc(doc(db, 'users', user.uid)).then(async snap => {
+            if (snap.exists()) {
+                const data = snap.data();
+                setMyData(data);
+
+                // Compute global rank: count how many users have strictly more focus time
+                try {
+                    const { getDocs, query: fsQuery, collection: col, orderBy: ord, where } = await import('firebase/firestore');
+                    const myFocus = data.totalFocusTime || 0;
+                    // Count users with MORE focus time than me
+                    const aboveQ = fsQuery(col(db, 'users'), where('totalFocusTime', '>', myFocus));
+                    const aboveSnap = await getDocs(aboveQ);
+                    const globalRank = aboveSnap.size + 1;
+                    setMyRank(globalRank);
+                } catch (_) {}
+            }
+        }).catch(() => {});
     }, [user?.uid]);
 
     const fmtTime = (s) => {
@@ -260,8 +280,8 @@ const Leaderboard = () => {
                         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                             className="flex flex-col items-center justify-center h-32 gap-3 text-center">
                             <span className="text-4xl opacity-40 filter grayscale">🌲</span>
-                            <p className="text-text-muted text-xs font-bold uppercase tracking-widest">No focus time yet</p>
-                            <p className="text-[10px] text-text-muted/60">Start a session to join the leaderboard!</p>
+                            <p className="text-text-muted text-xs font-bold uppercase tracking-widest">No users yet</p>
+                            <p className="text-[10px] text-text-muted/60">Be the first to register and start focusing!</p>
                         </motion.div>
                     ) : (
                         <AnimatePresence mode="popLayout">
@@ -321,35 +341,39 @@ const Leaderboard = () => {
                     )}
                 </div>
 
-                {/* Your Rank Footer */}
+                {/* Your Rank Footer — always visible when logged in */}
                 {user && (
                     <div className="mt-4 pt-4 border-t border-white/5">
-                        {myRank ? (
-                            <div className="flex items-center gap-3">
-                                <Avatar photoURL={myPhoto} name={myName} size={28} />
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-bold truncate">{myName}</p>
-                                    <p className="text-[10px] text-text-muted">
-                                        {myData?.treesPlanted ?? 0} 🌳 · ⚡{myData?.sessionsCount ?? 0}
+                        <div className="flex items-center gap-3">
+                            <Avatar photoURL={myPhoto} name={myName} size={28} />
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold truncate flex items-center gap-1">
+                                    {myName}
+                                    <span className="text-[7px] bg-brand text-white px-1.5 py-0.5 rounded-full uppercase font-black tracking-wider shrink-0">You</span>
+                                </p>
+                                <p className="text-[10px] text-text-muted">
+                                    {myData?.treesPlanted ?? 0} 🌳 · ⚡{myData?.sessionsCount ?? 0} · {fmtTime(myData?.totalFocusTime)}
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="text-right shrink-0">
+                                    <p className="text-[10px] text-text-muted uppercase tracking-widest font-bold">Your Rank</p>
+                                    <p className="text-sm font-black text-brand">
+                                        {myRank ? `#${myRank}` : '—'}
                                     </p>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <div className="text-right shrink-0">
-                                        <p className="text-[10px] text-text-muted uppercase tracking-widest font-bold">Your Rank</p>
-                                        <p className="text-sm font-black text-brand">#{myRank}</p>
-                                    </div>
-                                    {/* Share own achievement */}
-                                    <button
-                                        onClick={() => setShareTarget({ ranker: { ...myData, photoURL: myPhoto, name: myName }, rank: myRank })}
-                                        className="p-2 rounded-xl bg-brand/10 text-brand hover:bg-brand/20 transition-all"
-                                        title="Share your rank">
-                                        <Share2 size={14} />
-                                    </button>
-                                </div>
+                                {/* Share own achievement */}
+                                <button
+                                    onClick={() => setShareTarget({ ranker: { ...myData, photoURL: myPhoto, name: myName }, rank: myRank ?? '?' })}
+                                    className="p-2 rounded-xl bg-brand/10 text-brand hover:bg-brand/20 transition-all"
+                                    title="Share your rank">
+                                    <Share2 size={14} />
+                                </button>
                             </div>
-                        ) : (
-                            <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest text-center">
-                                Complete sessions to grow your forest 🌳
+                        </div>
+                        {!myData?.totalFocusTime && (
+                            <p className="text-[10px] text-text-muted/60 mt-2 text-center">
+                                🌱 Start a focus session to climb the leaderboard!
                             </p>
                         )}
                     </div>

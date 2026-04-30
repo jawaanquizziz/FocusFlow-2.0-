@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Settings as SettingsIcon, Clock, Calendar, Bell, Palette, LogOut, TreePine, Shield, UserPlus, X, Share2, Link as LinkIcon, Check } from 'lucide-react';
-import { useTimer } from '../hooks/useTimer';
+import { useTimer } from '../hooks/useTimer.jsx';
 import TimerDisplay from '../components/TimerDisplay';
 import TodoList from '../components/TodoList';
 import AmbientSounds from '../components/AmbientSounds';

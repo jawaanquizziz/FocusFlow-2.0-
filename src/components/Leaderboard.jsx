@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Trophy, Crown, Medal, Share2, X,
@@ -13,10 +13,7 @@ const TwitterIcon = ({ size = 18 }) => (
 );
 
 import { db } from '../services/firebase';
-import {
-    collection, query, orderBy, limit,
-    onSnapshot, doc, getDoc, getDocs, where
-} from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { useAuth } from '../hooks/useAuth';
 
 /* ─── Avatar helper ─────────────────────────────────────────────────── */
@@ -173,90 +170,48 @@ const Leaderboard = () => {
     const [shareTarget, setShareTarget] = useState(null);
     const [error, setError] = useState(null);
     const { user } = useAuth();
-    const rankComputedRef = useRef(false); // prevent rank from being overwritten after computed
 
-    /* ── Real-time top-10 snapshot ── */
-    useEffect(() => {
-        setLoading(true);
-        rankComputedRef.current = false;
-
-        let unsub = () => {};
+    const fetchAll = async () => {
         try {
-            // Order by treesPlanted so the leaderboard reflects trees (the primary metric)
-            // Falls back gracefully if some users have 0 trees
-            const q = query(
-                collection(db, 'users'),
-                orderBy('treesPlanted', 'desc'),
-                limit(10)
-            );
-            unsub = onSnapshot(q, snap => {
-                const data = snap.docs.map((d, i) => ({
-                    id: d.id,
-                    rank: i + 1,
-                    name: d.data().name || d.data().displayName || 'Anonymous',
-                    photoURL: d.data().photoURL || '',
-                    treesPlanted: d.data().treesPlanted ?? 0,
-                    sessionsCount: d.data().sessionsCount ?? 0,
-                    totalFocusTime: d.data().totalFocusTime ?? 0,
-                }));
-                setRankings(data);
+            // Fetch ALL users — sort locally so no Firestore index needed
+            // and every user (including those with 0 trees) is visible
+            const snap = await getDocs(collection(db, 'users'));
+            const all = snap.docs.map(d => ({
+                id: d.id,
+                name: d.data().name || d.data().displayName || 'Anonymous',
+                photoURL: d.data().photoURL || '',
+                treesPlanted: d.data().treesPlanted ?? 0,
+                sessionsCount: d.data().sessionsCount ?? 0,
+                totalFocusTime: d.data().totalFocusTime ?? 0,
+            }));
 
-                // If the current user is in top-10, set rank immediately
-                if (user?.uid && !rankComputedRef.current) {
-                    const idx = data.findIndex(r => r.id === user.uid);
-                    if (idx >= 0) {
-                        setMyRank(idx + 1);
-                        rankComputedRef.current = true;
-                    }
+            // Sort by trees descending, then by sessions as tiebreaker
+            all.sort((a, b) => b.treesPlanted - a.treesPlanted || b.sessionsCount - a.sessionsCount);
+
+            setRankings(all.map((r, i) => ({ ...r, rank: i + 1 })));
+
+            // Find current user rank
+            if (user?.uid) {
+                const idx = all.findIndex(r => r.id === user.uid);
+                if (idx >= 0) {
+                    setMyRank(idx + 1);
+                    setMyData(all[idx]);
                 }
-                setLoading(false);
-            }, err => {
-                console.error('Leaderboard snapshot error:', err);
-                setError(err.message);
-                setLoading(false);
-            });
+            }
+            setLoading(false);
         } catch (e) {
-            console.error(e);
+            console.error('Leaderboard fetch error:', e);
             setError(e.message);
             setLoading(false);
         }
-        return () => unsub();
-    }, [user?.uid]);
+    };
 
-    /* ── Fetch current user doc + compute global rank if outside top-10 ── */
     useEffect(() => {
-        if (!user?.uid) return;
-
-        const fetchMyData = async () => {
-            try {
-                const snap = await getDoc(doc(db, 'users', user.uid));
-                if (!snap.exists()) return;
-
-                const data = snap.data();
-                setMyData({
-                    ...data,
-                    treesPlanted: data.treesPlanted ?? 0,
-                    sessionsCount: data.sessionsCount ?? 0,
-                    totalFocusTime: data.totalFocusTime ?? 0,
-                });
-
-                // Only compute global rank if user is NOT already found in top-10
-                if (rankComputedRef.current) return;
-
-                // Count users with more trees than me to determine global position
-                const myTrees = data.treesPlanted ?? 0;
-                const aboveSnap = await getDocs(
-                    query(collection(db, 'users'), where('treesPlanted', '>', myTrees))
-                );
-                const globalRank = aboveSnap.size + 1;
-                setMyRank(globalRank);
-                rankComputedRef.current = true;
-            } catch (e) {
-                console.error('Failed to fetch user rank:', e);
-            }
-        };
-
-        fetchMyData();
+        setLoading(true);
+        fetchAll();
+        // Refresh every 30 seconds to stay up-to-date
+        const interval = setInterval(fetchAll, 30000);
+        return () => clearInterval(interval);
     }, [user?.uid]);
 
     const fmtTime = (s) => {

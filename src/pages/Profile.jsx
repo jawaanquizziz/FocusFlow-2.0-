@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ArrowLeft, TreePine, Clock, Zap, Flame, Target,
-    Edit3, Check, X, Camera, LogOut, Trophy, Calendar
+    Edit3, Check, X, Camera, LogOut, Trophy, Calendar, FileText
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { db } from '../services/firebase';
@@ -132,11 +132,19 @@ const Profile = () => {
                     <h1 className="text-2xl font-black font-brand">My <span className="text-brand">Profile</span></h1>
                     <p className="text-text-muted text-xs uppercase tracking-widest font-bold">Account & Stats</p>
                 </div>
-                <button onClick={logout}
-                    className="ml-auto p-3 rounded-2xl bg-white/5 text-text-muted hover:text-red-400 hover:bg-red-500/10 transition-all"
-                    title="Sign Out">
-                    <LogOut size={18} />
-                </button>
+                <div className="ml-auto flex items-center gap-2">
+                    <Link to="/reports"
+                        className="p-3 rounded-2xl bg-brand/10 text-brand hover:bg-brand/20 transition-all flex items-center gap-2"
+                        title="View Reports">
+                        <FileText size={18} />
+                        <span className="hidden sm:inline text-sm font-bold">Reports</span>
+                    </Link>
+                    <button onClick={logout}
+                        className="p-3 rounded-2xl bg-white/5 text-text-muted hover:text-red-400 hover:bg-red-500/10 transition-all"
+                        title="Sign Out">
+                        <LogOut size={18} />
+                    </button>
+                </div>
             </motion.header>
 
             {/* Profile Card */}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
 import { auth, db } from '../services/firebase';
 import { doc, setDoc, increment, arrayUnion } from 'firebase/firestore';
 
@@ -46,7 +46,9 @@ const logSession = (durationSeconds, mode, taskName = null) => {
   }
 };
 
-export const useTimer = () => {
+export const TimerContext = createContext(null);
+
+export const TimerProvider = ({ children }) => {
   const [mode, setMode] = useState(MODES.POMODORO);
   const [settings, setSettings] = useState(() => {
     const saved = localStorage.getItem('timerSettings');
@@ -162,10 +164,24 @@ export const useTimer = () => {
     }
   }, [isRunning, mode]);
 
-  return {
+  const value = {
     mode, timeLeft, isRunning, totalFocusSeconds,
     switchMode, startTimer, stopTimer, resetTimer,
     settings, updateSettings, MODES,
     currentTask: currentTaskRef.current
   };
+
+  return (
+    <TimerContext.Provider value={value}>
+      {children}
+    </TimerContext.Provider>
+  );
+};
+
+export const useTimer = () => {
+  const context = useContext(TimerContext);
+  if (!context) {
+    throw new Error('useTimer must be used within a TimerProvider');
+  }
+  return context;
 };

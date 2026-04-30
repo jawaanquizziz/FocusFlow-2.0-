@@ -177,9 +177,9 @@ const Leaderboard = () => {
     // Real-time top-10
     useEffect(() => {
         try {
-            const q = query(collection(db, 'users'), orderBy('treesPlanted', 'desc'), limit(10));
+            const q = query(collection(db, 'users'), orderBy('totalFocusTime', 'desc'), limit(10));
             const unsub = onSnapshot(q, snap => {
-                const data = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(u => (u.treesPlanted || 0) > 0);
+                const data = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(u => (u.totalFocusTime || 0) > 0);
                 setRankings(data);
                 if (user?.uid) {
                     const idx = data.findIndex(r => r.id === user.uid);
@@ -260,8 +260,8 @@ const Leaderboard = () => {
                         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                             className="flex flex-col items-center justify-center h-32 gap-3 text-center">
                             <span className="text-4xl opacity-40 filter grayscale">🌲</span>
-                            <p className="text-text-muted text-xs font-bold uppercase tracking-widest">No trees planted yet</p>
-                            <p className="text-[10px] text-text-muted/60">Complete a session to plant your first tree!</p>
+                            <p className="text-text-muted text-xs font-bold uppercase tracking-widest">No focus time yet</p>
+                            <p className="text-[10px] text-text-muted/60">Start a session to join the leaderboard!</p>
                         </motion.div>
                     ) : (
                         <AnimatePresence mode="popLayout">

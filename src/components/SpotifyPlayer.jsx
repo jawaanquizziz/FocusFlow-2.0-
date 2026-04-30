@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Music2, Play, Pause, SkipForward, SkipBack,
-    LogOut, ExternalLink, ChevronDown, ChevronUp, Wifi, WifiOff
+    LogOut, ExternalLink, Wifi, WifiOff, Search, Library
 } from 'lucide-react';
 import { useSpotify } from '../hooks/useSpotify';
 
@@ -49,16 +49,61 @@ const SpotifyPlayer = () => {
     const {
         connected, profile, nowPlaying, isPlaying, loading, error,
         connect, disconnect, togglePlay, skipNext, skipPrev, hasClientId,
+        searchTracks, getUserPlaylists, playContext
     } = useSpotify();
 
-    const [expanded, setExpanded] = useState(false);
-    const [activePlaylist, setActivePlaylist] = useState(null);
+    const [activeTab, setActiveTab] = useState('focus'); // focus | library | search
+    const [activePlaylist, setActivePlaylist] = useState(null); // For iframe
 
     const track = nowPlaying;
     const albumArt = track?.album?.images?.[0]?.url;
     const trackName = track?.name || '';
     const artistName = track?.artists?.map(a => a.name).join(', ') || '';
-    const progress = track ? (track.duration_ms > 0 ? 0 : 0) : 0; // visual only
+
+    // Search state
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
+    const [isSearching, setIsSearching] = useState(false);
+
+    // Library state
+    const [library, setLibrary] = useState([]);
+    const [loadingLibrary, setLoadingLibrary] = useState(false);
+
+    // Fetch library when tab changes to library
+    useEffect(() => {
+        if (activeTab === 'library' && library.length === 0) {
+            setLoadingLibrary(true);
+            getUserPlaylists().then(res => {
+                setLibrary(res);
+                setLoadingLibrary(false);
+            });
+        }
+    }, [activeTab, getUserPlaylists, library.length]);
+
+    // Handle search
+    useEffect(() => {
+        if (activeTab !== 'search' || !searchQuery) {
+            setSearchResults([]);
+            return;
+        }
+        const delayBounceFn = setTimeout(() => {
+            setIsSearching(true);
+            searchTracks(searchQuery).then(res => {
+                setSearchResults(res);
+                setIsSearching(false);
+            });
+        }, 500);
+        return () => clearTimeout(delayBounceFn);
+    }, [searchQuery, activeTab, searchTracks]);
+
+    const handlePlayItem = (uri, isContext = false) => {
+        // If they click an item, try to play it via API
+        if (isContext) {
+            playContext(uri);
+        } else {
+            playContext(null, [uri]);
+        }
+    };
 
     return (
         <div className="glass rounded-[2.5rem] border border-white/10 overflow-hidden relative flex flex-col h-full"
@@ -192,7 +237,6 @@ const SpotifyPlayer = () => {
             {/* ── Connected: Now Playing ──────────────────────────── */}
             {connected && (
                 <div className="px-5 pb-5 flex flex-col gap-4">
-
                     {/* Now Playing Card */}
                     <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
                         {track ? (
@@ -244,7 +288,7 @@ const SpotifyPlayer = () => {
                                 </div>
                                 <div>
                                     <p className="text-sm font-bold text-white">Nothing playing</p>
-                                    <p className="text-xs text-slate-500">Open Spotify and play something</p>
+                                    <p className="text-xs text-slate-500">Search or select a playlist below</p>
                                 </div>
                             </div>
                         )}
@@ -272,32 +316,34 @@ const SpotifyPlayer = () => {
                         </motion.button>
                     </div>
 
-                    {/* Playlists toggle */}
-                    <button onClick={() => setExpanded(!expanded)}
-                        className="flex items-center justify-between w-full px-3 py-2.5 rounded-2xl text-left transition-all hover:bg-white/5"
-                        style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Focus Playlists</span>
-                        {expanded ? <ChevronUp size={14} className="text-slate-500" /> : <ChevronDown size={14} className="text-slate-500" />}
-                    </button>
+                    {/* Navigation Tabs */}
+                    <div className="flex bg-white/5 p-1 rounded-xl mb-1 mt-2">
+                        {[
+                            { id: 'focus', icon: Music2, label: 'Focus' },
+                            { id: 'library', icon: Library, label: 'Library' },
+                            { id: 'search', icon: Search, label: 'Search' }
+                        ].map(t => (
+                            <button key={t.id} onClick={() => setActiveTab(t.id)}
+                                className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${activeTab === t.id ? 'bg-white/10 text-white shadow-md' : 'text-slate-500 hover:text-slate-300'}`}>
+                                <t.icon size={12} /> {t.label}
+                            </button>
+                        ))}
+                    </div>
 
-                    <AnimatePresence>
-                        {expanded && (
-                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
-                                exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.25 }}
-                                className="overflow-hidden space-y-2">
+                    {/* Tab Content */}
+                    <div className="relative min-h-[160px] max-h-[220px] overflow-y-auto custom-scrollbar pr-1 space-y-2">
+                        {activeTab === 'focus' && (
+                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2">
                                 <div className="grid grid-cols-2 gap-2">
                                     {FOCUS_PLAYLISTS.map(pl => (
-                                        <motion.button key={pl.id} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-                                            onClick={() => setActivePlaylist(activePlaylist === pl.id ? null : pl.id)}
+                                        <button key={pl.id} onClick={() => setActivePlaylist(activePlaylist === pl.id ? null : pl.id)}
                                             className="text-left p-3 rounded-2xl border transition-all"
                                             style={{
                                                 background: activePlaylist === pl.id ? SP_GREEN_DIM : 'rgba(255,255,255,0.03)',
                                                 borderColor: activePlaylist === pl.id ? SP_GREEN_BORDER : 'rgba(255,255,255,0.07)',
                                             }}>
-                                            <Music2 size={12} style={{ color: SP_GREEN, marginBottom: 4 }} />
                                             <p className="text-xs font-bold text-white">{pl.name}</p>
-                                            <p className="text-[9px] text-slate-500">{pl.desc}</p>
-                                        </motion.button>
+                                        </button>
                                     ))}
                                 </div>
                                 {activePlaylist && (
@@ -306,12 +352,71 @@ const SpotifyPlayer = () => {
                                         width="100%" height="152" frameBorder="0"
                                         allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
                                         loading="lazy" style={{ borderRadius: '16px' }}
-                                        title="Spotify Playlist"
                                     />
                                 )}
                             </motion.div>
                         )}
-                    </AnimatePresence>
+
+                        {activeTab === 'library' && (
+                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                                {loadingLibrary ? (
+                                    <div className="flex justify-center py-6">
+                                        <div className="w-5 h-5 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+                                    </div>
+                                ) : library.length === 0 ? (
+                                    <p className="text-center text-xs text-slate-500 py-6">No playlists found.</p>
+                                ) : (
+                                    <div className="grid grid-cols-1 gap-2">
+                                        {library.map(pl => (
+                                            <button key={pl.id} onClick={() => handlePlayItem(pl.uri, true)}
+                                                className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-all text-left">
+                                                <img src={pl.images?.[0]?.url || 'https://via.placeholder.com/40'} alt={pl.name} className="w-10 h-10 rounded-lg object-cover" />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-xs font-bold text-white truncate">{pl.name}</p>
+                                                    <p className="text-[10px] text-slate-500 truncate">{pl.tracks?.total} tracks</p>
+                                                </div>
+                                                <Play size={14} className="text-green-500 opacity-0 group-hover:opacity-100 transition-opacity mr-2" />
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </motion.div>
+                        )}
+
+                        {activeTab === 'search' && (
+                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
+                                <div className="relative">
+                                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Search for a song..." 
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="w-full bg-white/5 border border-white/10 rounded-xl py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-green-500/50"
+                                    />
+                                </div>
+                                {isSearching ? (
+                                    <div className="flex justify-center py-4">
+                                        <div className="w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+                                    </div>
+                                ) : (
+                                    <div className="space-y-1">
+                                        {searchResults.map(track => (
+                                            <button key={track.id} onClick={() => handlePlayItem(track.uri, false)}
+                                                className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-all text-left group">
+                                                <img src={track.album?.images?.[2]?.url || track.album?.images?.[0]?.url} alt={track.name} className="w-8 h-8 rounded-md object-cover" />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-xs font-bold text-white truncate">{track.name}</p>
+                                                    <p className="text-[10px] text-slate-500 truncate">{track.artists?.map(a => a.name).join(', ')}</p>
+                                                </div>
+                                                <Play size={12} className="text-green-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </motion.div>
+                        )}
+                    </div>
                 </div>
             )}
         </div>

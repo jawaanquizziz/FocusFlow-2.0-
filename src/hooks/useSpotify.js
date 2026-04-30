@@ -7,6 +7,8 @@ const SCOPES = [
     'user-read-private',
     'user-read-email',
     'streaming',
+    'playlist-read-private',
+    'playlist-read-collaborative'
 ].join(' ');
 
 /* ── PKCE Helpers ────────────────────────────────────────────────── */
@@ -176,6 +178,30 @@ export const useSpotify = () => {
         setTimeout(fetchNowPlaying, 600);
     }, [api, fetchNowPlaying]);
 
+    /* New Features: Search & Library */
+    const searchTracks = useCallback(async (query) => {
+        if (!query) return [];
+        const data = await api(`/search?q=${encodeURIComponent(query)}&type=track&limit=10`);
+        return data?.tracks?.items || [];
+    }, [api]);
+
+    const getUserPlaylists = useCallback(async () => {
+        const data = await api('/me/playlists?limit=20');
+        return data?.items || [];
+    }, [api]);
+
+    const playContext = useCallback(async (contextUri, uris = null) => {
+        const t = await getToken();
+        if (!t) return;
+        const body = uris ? { uris } : { context_uri: contextUri };
+        await fetch('https://api.spotify.com/v1/me/player/play', {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        setTimeout(fetchNowPlaying, 600);
+    }, [getToken, fetchNowPlaying]);
+
     /* Connect — initiate PKCE OAuth */
     const connect = useCallback(async () => {
         if (!CLIENT_ID) {
@@ -218,6 +244,9 @@ export const useSpotify = () => {
         togglePlay,
         skipNext,
         skipPrev,
+        searchTracks,
+        getUserPlaylists,
+        playContext,
         hasClientId: !!CLIENT_ID,
     };
 };

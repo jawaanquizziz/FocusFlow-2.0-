@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings as SettingsIcon, Clock, Calendar, Bell, Palette, LogOut, TreePine, Shield } from 'lucide-react';
+import { Settings as SettingsIcon, Clock, Calendar, Bell, Palette, LogOut, TreePine, Shield, UserPlus, X, Share2, Link as LinkIcon, Check } from 'lucide-react';
 import { useTimer } from '../hooks/useTimer';
 import TimerDisplay from '../components/TimerDisplay';
 import TodoList from '../components/TodoList';
@@ -19,6 +19,59 @@ import { useAuth } from '../hooks/useAuth';
 const ADMIN_EMAILS = ['admin@focusflow.app', 'jawaan25fcrit@gmail.com']; 
 // ─────────────────────────────────────────────────────────────────
 
+/* ─── Invite Friends Modal ────────────────────────────────────────────── */
+const InviteModal = ({ onClose, user }) => {
+    const [copied, setCopied] = useState(false);
+    const shareText = `🌳 Join me on FocusFlow to plant trees and boost your productivity! Let's crush our goals together 🚀 #FocusFlow #DeepWork #Pomodoro`;
+    const shareUrl = typeof window !== 'undefined' ? window.location.origin : 'https://focusflow.app';
+
+    const copyText = async () => {
+        try {
+            await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
+    };
+
+    return (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
+            onClick={onClose}
+        >
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+                onClick={e => e.stopPropagation()}
+                className="bg-[#0f172a] border border-white/10 w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden"
+            >
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                        <div className="p-3 bg-brand/10 rounded-2xl"><UserPlus size={20} className="text-brand" /></div>
+                        <div>
+                            <h3 className="font-black text-base">Invite Friends</h3>
+                            <p className="text-[10px] text-text-muted uppercase tracking-widest font-bold">Grow together 🌳</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/5 text-text-muted hover:text-white transition-all">
+                        <X size={18} />
+                    </button>
+                </div>
+                <div className="bg-gradient-to-br from-brand/10 to-emerald-500/10 border border-brand/20 rounded-2xl p-4 mb-6">
+                    <p className="text-sm font-medium text-white mb-2">{shareText}</p>
+                    <p className="text-[10px] text-text-muted font-mono">{shareUrl}</p>
+                </div>
+                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                    onClick={copyText}
+                    className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border font-bold text-sm transition-all relative ${copied ? 'bg-green-500/20 border-green-500/30 text-green-400' : 'bg-white/5 border-white/10 text-text-muted hover:text-white'}`}>
+                    {copied ? <Check size={16} /> : <LinkIcon size={16} />}
+                    {copied ? 'Copied!' : 'Copy Link & Text'}
+                </motion.button>
+            </motion.div>
+        </motion.div>
+    );
+};
+
 const Home = () => {
   const {
     mode,
@@ -37,10 +90,13 @@ const Home = () => {
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isThemeOpen, setIsThemeOpen] = useState(false);
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isGroveMode, setIsGroveMode] = useState(true);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [taskInput, setTaskInput] = useState('');
   const [rewardMsg, setRewardMsg] = useState(null);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [notificationsList, setNotificationsList] = useState([]);
   
   const { user, logout } = useAuth();
 
@@ -73,8 +129,6 @@ const Home = () => {
 
   const { permission, requestPermission, sendNotification } = useNotifications();
 
-  // We remove the automatic setTimeout for permissions as browsers handle it better on user click
-
   const lastTimeRef = React.useRef(timeLeft);
   React.useEffect(() => {
     if (lastTimeRef.current > 0 && timeLeft === 0 && !isRunning) {
@@ -88,9 +142,30 @@ const Home = () => {
             body: bodyText,
             requireInteraction: true
         });
+
+        if (isFocus) {
+            const newNotif = {
+                id: Date.now(),
+                title: 'Achievement Unlocked! 🌳',
+                message: `You successfully planted a tree for "${currentTask || 'Focus Session'}"!`,
+                time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+            };
+            const existing = JSON.parse(localStorage.getItem('app_notifications') || '[]');
+            const updated = [newNotif, ...existing].slice(0, 20); // Keep last 20
+            localStorage.setItem('app_notifications', JSON.stringify(updated));
+            setNotificationsList(updated);
+        }
     }
     lastTimeRef.current = timeLeft;
   }, [timeLeft, isRunning, mode, MODES, sendNotification, currentTask]);
+
+  React.useEffect(() => {
+      // Load initial notifications
+      try {
+          const existing = JSON.parse(localStorage.getItem('app_notifications') || '[]');
+          setNotificationsList(existing);
+      } catch (e) {}
+  }, []);
 
   const handleStartFlowClick = () => {
     if (isRunning) {
@@ -98,7 +173,9 @@ const Home = () => {
     } else {
         const isResuming = timeLeft < settings[mode];
         if (mode === MODES.POMODORO && !isResuming) {
-            setIsTaskModalOpen(true);
+            const activeTodos = getActiveTodos();
+            const taskName = activeTodos.length > 0 ? activeTodos[0].text : 'Focus Session';
+            startTimer(taskName);
         } else {
             startTimer();
         }
@@ -175,28 +252,87 @@ const Home = () => {
             <Palette size={20} />
           </button>
 
+          <div className="relative">
+              <button 
+                onClick={() => {
+                    requestPermission();
+                    setIsNotificationsOpen(!isNotificationsOpen);
+                }}
+                className={`p-3 rounded-2xl transition-all relative ${
+                    permission === 'granted' || notificationsList.length > 0
+                    ? 'text-brand bg-brand/10' 
+                    : 'text-text-muted bg-white/5 hover:text-white'
+                }`}
+              >
+                {permission === 'default' && (
+                    <motion.div 
+                        animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
+                        transition={{ repeat: Infinity, duration: 2 }}
+                        className="absolute inset-0 bg-brand rounded-2xl blur-md"
+                    />
+                )}
+                <Bell size={20} className="relative z-10" />
+                {(permission === 'default' || notificationsList.length > 0) && (
+                    <span className="absolute -top-1 -right-1 flex h-3 w-3 relative z-20">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-brand"></span>
+                    </span>
+                )}
+              </button>
+
+              {/* Notifications Dropdown */}
+              <AnimatePresence>
+                  {isNotificationsOpen && (
+                      <motion.div 
+                          initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                          className="absolute right-0 top-full mt-4 w-80 bg-[#0f172a] border border-white/10 rounded-3xl shadow-2xl z-[100] overflow-hidden"
+                      >
+                          <div className="p-4 border-b border-white/10 flex justify-between items-center bg-white/5">
+                              <h3 className="font-black text-sm text-white">Notifications</h3>
+                              <button 
+                                  onClick={() => {
+                                      localStorage.removeItem('app_notifications');
+                                      setNotificationsList([]);
+                                  }}
+                                  className="text-[10px] uppercase font-bold tracking-widest text-text-muted hover:text-brand transition-colors"
+                              >
+                                  Clear All
+                              </button>
+                          </div>
+                          <div className="max-h-[300px] overflow-y-auto custom-scrollbar p-2">
+                              {notificationsList.length === 0 ? (
+                                  <div className="p-6 text-center text-text-muted">
+                                      <Bell size={24} className="mx-auto mb-2 opacity-50" />
+                                      <p className="text-xs font-bold uppercase tracking-widest">All caught up!</p>
+                                  </div>
+                              ) : (
+                                  <div className="space-y-1">
+                                      {notificationsList.map(n => (
+                                          <div key={n.id} className="p-3 rounded-2xl hover:bg-white/5 transition-colors group cursor-default">
+                                              <div className="flex justify-between items-start mb-1">
+                                                  <p className="text-xs font-black text-white">{n.title}</p>
+                                                  <span className="text-[9px] font-bold text-text-muted">{n.time}</span>
+                                              </div>
+                                              <p className="text-[10px] text-slate-400 leading-relaxed">{n.message}</p>
+                                          </div>
+                                      ))}
+                                  </div>
+                              )}
+                          </div>
+                      </motion.div>
+                  )}
+              </AnimatePresence>
+          </div>
+
+          {/* Invite button */}
           <button 
-            onClick={requestPermission}
-            className={`p-3 rounded-2xl transition-all relative ${
-                permission === 'granted' 
-                ? 'text-brand bg-brand/10' 
-                : 'text-text-muted bg-white/5 hover:text-white'
-            }`}
+            onClick={() => setIsInviteOpen(true)}
+            className="p-3 rounded-2xl transition-all text-brand bg-brand/10 hover:bg-brand/20 hover:scale-105"
+            title="Invite Friends"
           >
-            {permission === 'default' && (
-                <motion.div 
-                    animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
-                    transition={{ repeat: Infinity, duration: 2 }}
-                    className="absolute inset-0 bg-brand rounded-2xl blur-md"
-                />
-            )}
-            <Bell size={20} className="relative z-10" />
-            {permission === 'default' && (
-                <span className="absolute -top-1 -right-1 flex h-3 w-3 relative z-20">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-brand"></span>
-                </span>
-            )}
+            <UserPlus size={20} />
           </button>
 
           {/* Profile button */}
@@ -220,8 +356,6 @@ const Home = () => {
               </div>
             )}
           </Link>
-
-
 
           <button 
             onClick={logout}
@@ -364,6 +498,13 @@ const Home = () => {
         isOpen={isThemeOpen}
         onClose={() => setIsThemeOpen(false)}
       />
+      
+      {/* Invite Modal */}
+      <AnimatePresence>
+          {isInviteOpen && (
+              <InviteModal onClose={() => setIsInviteOpen(false)} user={user} />
+          )}
+      </AnimatePresence>
 
       {/* Reward Popup */}
       <AnimatePresence>

@@ -16,33 +16,35 @@ const ForestGrove = ({ progress, isRunning, mode }) => {
 
     // Extract established trees from user sessions or local storage
     const { establishedTrees, totalTrees } = useMemo(() => {
-        let sessionsToUse = user?.sessions || [];
-        if (!user) {
-            try {
-                sessionsToUse = JSON.parse(localStorage.getItem('focusSessions') || '[]');
-            } catch (e) {}
+        let sessionsToUse = [];
+        try {
+            // Local storage is updated instantly, so prioritize it for real-time visual updates
+            const localSessions = JSON.parse(localStorage.getItem('focusSessions') || '[]');
+            sessionsToUse = localSessions.length > 0 ? localSessions : (user?.sessions || []);
+        } catch (e) {
+            sessionsToUse = user?.sessions || [];
         }
 
         // Filter out valid pomodoro sessions that grew a tree
         const pomodoroSessions = sessionsToUse.filter(s => s.mode === 'pomodoro');
         
         const trees = pomodoroSessions.map((s, i) => {
-            // Generate a pseudo-random position based on index so they don't jump around
-            const seed = (i * 137.5) % 100; 
-            const heightSeed = (i * 41.3) % 30;
+            // Enhanced pseudo-random distribution for up to 100 trees
+            const seed = (i * 137.508) % 100; 
+            const heightSeed = (i * 41.3) % 40; // More depth variation
             return {
                 id: `tree-${i}`,
                 task: s.task || 'Focus Session',
                 date: new Date(s.timestamp || Date.now()).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
                 x: `${seed}%`,
-                bottom: `${40 + heightSeed}px`,
-                scale: 0.7 + ((seed % 50) / 100),
+                bottom: `${30 + heightSeed}px`,
+                scale: 0.6 + ((seed % 40) / 100),
                 zIndex: Math.floor(100 - heightSeed)
             };
         });
         
         return {
-            establishedTrees: trees.slice(-30),
+            establishedTrees: trees.slice(-100), // Show up to 100 past trees
             totalTrees: user?.treesPlanted || pomodoroSessions.length
         };
     }, [user]);
@@ -56,6 +58,12 @@ const ForestGrove = ({ progress, isRunning, mode }) => {
             setTimeout(() => setShowFinish(false), 4000);
         }
     }, [percentage, isPomodoro]);
+
+    // Use a ref for percentage to prevent constant re-rendering of the canvas loop
+    const percentageRef = useRef(percentage);
+    useEffect(() => {
+        percentageRef.current = percentage;
+    }, [percentage]);
 
     // Canvas animation for forest background and growing tree
     useEffect(() => {
@@ -84,61 +92,44 @@ const ForestGrove = ({ progress, isRunning, mode }) => {
             ctx.fillStyle = ground;
             ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
 
-            // Draw growing tree (foreground) if Pomodoro mode
-            if (isPomodoro) {
+            // Draw Sun
+            const sunY = Math.max(40, H * 0.4 - (percentageRef.current * 40)); // Sun rises slightly as session progresses
+            const sunGradient = ctx.createRadialGradient(W * 0.8, sunY, 15, W * 0.8, sunY, 70);
+            sunGradient.addColorStop(0, 'rgba(253, 224, 71, 0.9)'); // bright yellow
+            sunGradient.addColorStop(0.4, 'rgba(253, 224, 71, 0.3)');
+            sunGradient.addColorStop(1, 'rgba(253, 224, 71, 0)');
+            
+            ctx.fillStyle = sunGradient;
+            ctx.beginPath();
+            ctx.arc(W * 0.8, sunY, 70, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Inner solid sun
+            ctx.fillStyle = '#fef08a';
+            ctx.shadowColor = '#fef08a';
+            ctx.shadowBlur = 20;
+            ctx.beginPath();
+            ctx.arc(W * 0.8, sunY, 18, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Draw falling leaves if running
+            if (isPomodoro && isRunning) {
                 const cx = W / 2;
                 const cy = GROUND_Y + 10;
-                const growScale = 0.2 + (percentage * 1.3);
+                const growScale = 0.2 + (percentageRef.current * 1.3);
 
-                ctx.save();
-                ctx.translate(cx, cy);
-                ctx.scale(growScale, growScale);
-
-                ctx.shadowColor = '#10b981';
-                ctx.shadowBlur = 15;
-
-                // Active Trunk
-                ctx.fillStyle = '#78350f';
-                ctx.fillRect(-5, -40, 10, 40);
-
-                // Active Leaves
-                ctx.fillStyle = '#10b981';
-                
-                ctx.beginPath();
-                ctx.moveTo(0, -90);
-                ctx.lineTo(-30, -30);
-                ctx.lineTo(30, -30);
-                ctx.fill();
-                
-                ctx.beginPath();
-                ctx.moveTo(0, -60);
-                ctx.lineTo(-35, -10);
-                ctx.lineTo(35, -10);
-                ctx.fill();
-
-                ctx.beginPath();
-                ctx.moveTo(0, -30);
-                ctx.lineTo(-40, 10);
-                ctx.lineTo(40, 10);
-                ctx.fill();
-
-                ctx.shadowBlur = 0;
-                ctx.restore();
-
-                // Draw falling leaves if running
-                if (isRunning) {
-                    if (Math.random() < 0.1) {
-                        leavesRef.current.push({
-                            x: cx + (Math.random() - 0.5) * 80 * growScale,
-                            y: cy - (30 + Math.random() * 60) * growScale,
-                            vx: (Math.random() - 0.5) * 1 + 0.5,
-                            vy: Math.random() * 1 + 0.5,
-                            size: 2 + Math.random() * 3,
-                            angle: Math.random() * Math.PI * 2,
-                            rotSpeed: (Math.random() - 0.5) * 0.2,
-                            life: 1
-                        });
-                    }
+                if (Math.random() < 0.1) {
+                    leavesRef.current.push({
+                        x: cx + (Math.random() - 0.5) * 80 * growScale,
+                        y: cy - (30 + Math.random() * 60) * growScale,
+                        vx: (Math.random() - 0.5) * 1 + 0.5,
+                        vy: Math.random() * 1 + 0.5,
+                        size: 2 + Math.random() * 3,
+                        angle: Math.random() * Math.PI * 2,
+                        rotSpeed: (Math.random() - 0.5) * 0.2,
+                        life: 1
+                    });
                 }
             }
 
@@ -167,7 +158,7 @@ const ForestGrove = ({ progress, isRunning, mode }) => {
 
         animRef.current = requestAnimationFrame(drawFrame);
         return () => cancelAnimationFrame(animRef.current);
-    }, [isRunning, percentage, isPomodoro]);
+    }, [isRunning, isPomodoro]); // Removed percentage from dependencies
 
     return (
         <div className="w-full rounded-[2.5rem] overflow-hidden border border-white/10 relative bg-[#0f172a] shadow-2xl shadow-emerald-900/20 group">
@@ -258,8 +249,28 @@ const ForestGrove = ({ progress, isRunning, mode }) => {
                 ref={canvasRef}
                 width={800}
                 height={200}
-                className="w-full h-[200px] object-cover"
+                className="w-full h-[200px] object-cover relative z-0"
             />
+
+            {/* Growing Tree (Front & Center) */}
+            {isPomodoro && (
+                <div 
+                    className="absolute z-20 pointer-events-none flex flex-col items-center justify-end"
+                    style={{
+                        left: '50%',
+                        bottom: '50px', // Align with established trees and ground
+                        transform: `translateX(-50%) scale(${0.3 + (percentage * 1.2)})`,
+                        transformOrigin: 'bottom center',
+                        filter: isRunning ? 'drop-shadow(0 0 15px rgba(52, 211, 153, 0.8))' : 'drop-shadow(0 4px 8px rgba(0,0,0,0.5))'
+                    }}
+                >
+                    <svg width="80" height="120" viewBox="0 0 40 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="16" y="40" width="8" height="20" fill="#451a03"/>
+                        <path d="M20 0L40 25H30L35 40H5L10 25H0L20 0Z" fill="currentColor" className="text-emerald-500"/>
+                        <path d="M20 10L32 28H26L30 40H10L14 28H8L20 10Z" fill="currentColor" className="text-emerald-400"/>
+                    </svg>
+                </div>
+            )}
 
             {/* Progress area */}
             <div className="relative z-20 bg-[#020617] border-t border-white/5 px-8 py-4 flex items-center gap-6">

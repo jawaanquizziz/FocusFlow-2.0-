@@ -169,7 +169,7 @@ const Admin = () => {
                     <span className="bg-white/5 px-4 py-2 rounded-2xl text-xs font-black text-text-muted border border-white/5">
                         {users.length} users
                     </span>
-                    <button onClick={fetchUsers} disabled={loading}
+                    <button onClick={() => window.location.reload()} disabled={loading}
                         className="p-3 bg-white/5 hover:bg-brand/20 text-text-muted hover:text-brand rounded-2xl transition-all">
                         <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
                     </button>

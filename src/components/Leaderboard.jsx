@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Trophy, Crown, Medal, Share2, X,
-    Link as LinkIcon, Check
+    Link as LinkIcon, Check, Search as SearchIcon
 } from 'lucide-react';
 
 // Twitter/X logo (removed from newer lucide-react)
@@ -219,6 +219,7 @@ const Leaderboard = () => {
     const [myData, setMyData] = useState(null);
     const [shareTarget, setShareTarget] = useState(null);
     const [error, setError] = useState(null);
+    const [searchQuery, setSearchQuery] = useState('');
     const { user } = useAuth();
 
     useEffect(() => {
@@ -315,6 +316,20 @@ const Leaderboard = () => {
                     </div>
                 </div>
 
+                {/* Search Bar */}
+                <div className="relative mb-4 group px-1">
+                    <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-text-muted group-focus-within:text-brand transition-colors">
+                        <SearchIcon size={14} />
+                    </div>
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search planters..."
+                        className="w-full bg-white/5 border border-white/10 rounded-2xl py-2.5 pl-11 pr-4 text-xs focus:outline-none focus:border-brand/50 focus:bg-white/10 transition-all placeholder:text-text-muted/50"
+                    />
+                </div>
+
                 {/* Column labels */}
                 {rankings.length > 0 && (
                     <div className="grid grid-cols-[auto_1fr_auto_auto] gap-2 px-2 pb-2 text-[9px] font-black uppercase tracking-widest text-text-muted/50">
@@ -342,7 +357,12 @@ const Leaderboard = () => {
                         </motion.div>
                     ) : (
                         <AnimatePresence mode="popLayout">
-                            {rankings.map((ranker, index) => {
+                            {rankings
+                                .filter(r => 
+                                    r.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                    r.id.toLowerCase().includes(searchQuery.toLowerCase())
+                                )
+                                .map((ranker, index) => {
                                 const me = isMe(ranker.id);
                                 const style = rankStyles[index] || { bg: 'bg-white/3', border: 'border-transparent', text: 'text-text-muted', glow: '' };
 

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Settings as SettingsIcon, Clock, Calendar, Bell, Palette, LogOut, TreePine, Shield, UserPlus, X, Share2, Link as LinkIcon, Check, BarChart2, TrendingUp, Zap, Monitor, ExternalLink, MessageSquare } from 'lucide-react';
+import { Settings as SettingsIcon, Clock, Calendar, Bell, Palette, LogOut, TreePine, Shield, UserPlus, X, Share2, Link as LinkIcon, Check, BarChart2, TrendingUp, Zap, Monitor, ExternalLink } from 'lucide-react';
 import { useTimer } from '../hooks/useTimer.jsx';
 import TimerDisplay from '../components/TimerDisplay';
 import TodoList from '../components/TodoList';

@@ -4,6 +4,7 @@ import {
     Trophy, Crown, Medal, Share2, X,
     Link as LinkIcon, Check, Search as SearchIcon
 } from 'lucide-react';
+import html2canvas from 'html2canvas';
 
 // Twitter/X logo (removed from newer lucide-react)
 const TwitterIcon = ({ size = 18 }) => (
@@ -50,7 +51,9 @@ const ShareModal = ({ ranker, rank, onClose }) => {
         if (!captureRef.current) return;
         setIsCapturing(true);
         try {
-            const html2canvas = (await import('html2canvas')).default;
+            // Small delay to ensure all animations/gradients are rendered
+            await new Promise(resolve => setTimeout(resolve, 100));
+
             const canvas = await html2canvas(captureRef.current, {
                 backgroundColor: '#0f172a',
                 scale: 3, // Ultra-high quality
@@ -59,15 +62,44 @@ const ShareModal = ({ ranker, rank, onClose }) => {
             });
             
             canvas.toBlob(async (blob) => {
-                if (!blob) return;
+                if (!blob) {
+                    setIsCapturing(false);
+                    return;
+                }
                 try {
                     const file = new File([blob], `focusflow-rank-${rank}.png`, { type: 'image/png' });
+                    
+                    // 1. ALWAYS Copy to Clipboard first
+                    let clipboardSuccess = false;
+                    try {
+                        if (navigator.clipboard && window.ClipboardItem) {
+                            await navigator.clipboard.write([
+                                new ClipboardItem({ 'image/png': blob })
+                            ]);
+                            clipboardSuccess = true;
+                        }
+                    } catch (err) {
+                        console.log('Direct clipboard write failed');
+                    }
+
+                    // 2. Try Native Share (Mobile)
                     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                        await navigator.share({
-                            files: [file],
-                            title: 'My FocusFlow Rank',
-                            text: `${shareText}\n${shareUrl}`
-                        });
+                        try {
+                            await navigator.share({
+                                files: [file],
+                                title: 'My FocusFlow Rank',
+                                text: `${shareText}\n${shareUrl}`
+                            });
+                            setIsCapturing(false);
+                            return;
+                        } catch (shareErr) {
+                            console.log('Native share failed');
+                        }
+                    }
+
+                    // 3. Final Feedback / Fallback
+                    if (clipboardSuccess) {
+                        alert('✨ Achievement Card Ready! It has been copied to your clipboard. Just PASTE (Ctrl+V) it into your chat!');
                     } else {
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
@@ -75,6 +107,7 @@ const ShareModal = ({ ranker, rank, onClose }) => {
                         a.download = file.name;
                         a.click();
                         URL.revokeObjectURL(url);
+                        alert('✨ Achievement Card Downloaded!');
                     }
                 } catch (e) {
                     console.error('Sharing failed', e);
@@ -410,7 +443,7 @@ const Leaderboard = () => {
                                             {me && (
                                                 <button
                                                     onClick={() => setShareTarget({ ranker, rank: index + 1 })}
-                                                    className="p-1 rounded-lg bg-brand/10 text-brand hover:bg-brand/30 transition-all opacity-0 group-hover:opacity-100"
+                                                    className="p-1 rounded-lg bg-brand/10 text-brand hover:bg-brand/30 transition-all shadow-sm"
                                                     title="Share Achievement">
                                                     <Share2 size={11} />
                                                 </button>

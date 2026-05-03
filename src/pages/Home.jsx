@@ -8,6 +8,7 @@ import SettingsModal from '../components/SettingsModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { useNotifications } from '../hooks/useNotifications';
+import html2canvas from 'html2canvas';
 import ThemeGallery from '../components/ThemeGallery';
 import Leaderboard from '../components/Leaderboard';
 import ForestGrove from '../components/ForestGrove';
@@ -55,8 +56,11 @@ const InviteModal = ({ onClose, user }) => {
     const shareAsImage = async () => {
         if (!captureRef.current) return;
         setIsCapturing(true);
+        
         try {
-            const html2canvas = (await import('html2canvas')).default;
+            // Small delay to ensure all animations/gradients are rendered
+            await new Promise(resolve => setTimeout(resolve, 100));
+
             const canvas = await html2canvas(captureRef.current, {
                 backgroundColor: '#0f172a',
                 scale: 3,
@@ -74,27 +78,49 @@ const InviteModal = ({ onClose, user }) => {
                 try {
                     const file = new File([blob], 'focusflow-invite.png', { type: 'image/png' });
                     
-                    // On Desktop/Laptop, navigator.share with files is often unsupported
-                    // We check if it's available, otherwise we download directly
+                    // 1. ALWAYS Copy to Clipboard first (Reliable for Laptops/PCs)
+                    let clipboardSuccess = false;
+                    try {
+                        if (navigator.clipboard && window.ClipboardItem) {
+                            await navigator.clipboard.write([
+                                new ClipboardItem({ 'image/png': blob })
+                            ]);
+                            clipboardSuccess = true;
+                        }
+                    } catch (err) {
+                        console.log('Direct clipboard write failed');
+                    }
+
+                    // 2. Try Native Share (Best for Mobile)
                     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                        await navigator.share({
-                            files: [file],
-                            title: 'Join me on FocusFlow 🌳',
-                            text: `${shareText}\n${shareUrl}`
-                        });
+                        try {
+                            await navigator.share({
+                                files: [file],
+                                title: 'Join me on FocusFlow 🌳',
+                                text: `Join me and grow your forest while crushing goals on FocusFlow! 🚀\nhttps://focusflow.app`
+                            });
+                            setIsCapturing(false);
+                            return;
+                        } catch (shareErr) {
+                            console.log('Native share cancelled or failed');
+                        }
+                    }
+
+                    // 3. Final Feedback / Fallback
+                    if (clipboardSuccess) {
+                        alert('✨ Image Card Ready! It has been copied to your clipboard. Just PASTE (Ctrl+V) it into your chat!');
                     } else {
-                        // DOWNLOAD FALLBACK (Better for Laptops)
+                        // DOWNLOAD FALLBACK
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;
                         a.download = `focusflow-invite-${Date.now()}.png`;
-                        document.body.appendChild(a);
                         a.click();
-                        document.body.removeChild(a);
                         URL.revokeObjectURL(url);
+                        alert('✨ Image Card Downloaded! You can now send it to your friends.');
                     }
                 } catch (e) {
-                    console.error('Sharing/Download failed', e);
+                    console.error('Sharing process failed', e);
                 }
                 setIsCapturing(false);
             }, 'image/png');
@@ -226,6 +252,29 @@ const Home = () => {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const pipWindowRef = useRef(null);
 
+  const getActiveTodos = () => {
+    try {
+      const saved = localStorage.getItem('todos');
+      if (saved) return JSON.parse(saved).filter(t => !t.done).slice(0, 5); // Take top 5
+    } catch(e) {}
+    return [];
+  };
+
+  const handleStartFlowClick = () => {
+    if (isRunning) {
+        stopTimer();
+    } else {
+        const isResuming = timeLeft < settings[mode];
+        if (mode === MODES.POMODORO && !isResuming) {
+            const activeTodos = getActiveTodos();
+            const taskName = activeTodos.length > 0 ? activeTodos[0].text : 'Focus Session';
+            startTimer(taskName);
+        } else {
+            startTimer();
+        }
+    }
+  };
+
   // Keep PIP window in sync with main state
   React.useEffect(() => {
       const pip = pipWindowRef.current;
@@ -242,11 +291,10 @@ const Home = () => {
               timeDiv.innerText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
           }
 
-          // Update Button State & Click Handler (CRITICAL: Re-bind to fresh functions)
+          // Update Button State & Click Handler (CRITICAL: Use identical logic as website)
           if (controlBtn) {
               controlBtn.onclick = () => {
-                  if (isRunning) stopTimer();
-                  else startTimer();
+                  handleStartFlowClick();
               };
               
               if (isRunning) {
@@ -262,7 +310,7 @@ const Home = () => {
               taskDiv.innerText = currentTask || 'Focus Session';
           }
       }
-  }, [timeLeft, isRunning, currentTask, startTimer, stopTimer]);
+  }, [timeLeft, isRunning, currentTask, handleStartFlowClick]);
 
   // PIP (Floating Timer) Feature
   const handlePip = async () => {
@@ -392,13 +440,6 @@ const Home = () => {
   
   const { user, logout } = useAuth();
 
-  const getActiveTodos = () => {
-    try {
-      const saved = localStorage.getItem('todos');
-      if (saved) return JSON.parse(saved).filter(t => !t.done).slice(0, 5); // Take top 5
-    } catch(e) {}
-    return [];
-  };
 
   const MILESTONES = [
     { target: 3600, label: '1 Hour' },
@@ -459,20 +500,6 @@ const Home = () => {
       } catch (e) {}
   }, []);
 
-  const handleStartFlowClick = () => {
-    if (isRunning) {
-        stopTimer();
-    } else {
-        const isResuming = timeLeft < settings[mode];
-        if (mode === MODES.POMODORO && !isResuming) {
-            const activeTodos = getActiveTodos();
-            const taskName = activeTodos.length > 0 ? activeTodos[0].text : 'Focus Session';
-            startTimer(taskName);
-        } else {
-            startTimer();
-        }
-    }
-  };
 
   const confirmStartSession = (taskName) => {
     setIsTaskModalOpen(false);
@@ -670,7 +697,7 @@ const Home = () => {
             <div className="absolute top-8 left-8 flex gap-2">
                 <button 
                     onClick={handlePip}
-                    className="p-3 rounded-2xl bg-white/5 text-text-muted hover:text-brand hover:bg-brand/10 transition-all opacity-0 group-hover:opacity-100"
+                    className="p-3 rounded-2xl bg-white/5 text-text-muted hover:text-brand hover:bg-brand/10 transition-all shadow-lg"
                     title="Pop-out Floating Timer"
                 >
                     <ExternalLink size={24} />
@@ -679,7 +706,7 @@ const Home = () => {
 
             <button 
                 onClick={() => setIsSettingsOpen(true)}
-                className="absolute top-8 right-8 text-text-muted hover:text-white transition-all p-3 hover:bg-white/5 rounded-2xl opacity-0 group-hover:opacity-100"
+                className="absolute top-8 right-8 text-text-muted hover:text-white transition-all p-3 hover:bg-white/5 rounded-2xl shadow-lg"
             >
                 <SettingsIcon size={24} />
             </button>

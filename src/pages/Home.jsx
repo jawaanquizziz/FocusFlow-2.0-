@@ -379,14 +379,20 @@ const Home = () => {
 
         const timeDiv = pipWindow.document.createElement('div');
         timeDiv.className = 'time';
+        const m = Math.floor(timeLeft / 60);
+        const s = timeLeft % 60;
+        timeDiv.innerText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
         pipWindow.document.body.append(timeDiv);
 
         const taskDiv = pipWindow.document.createElement('div');
         taskDiv.className = 'task';
+        taskDiv.innerText = currentTask || 'Focus Session';
         pipWindow.document.body.append(taskDiv);
 
         const controlBtn = pipWindow.document.createElement('button');
-        controlBtn.className = 'btn';
+        controlBtn.className = `btn ${isRunning ? 'btn-pause' : 'btn-play'}`;
+        controlBtn.innerText = isRunning ? 'PAUSE' : 'START';
+        controlBtn.onclick = () => handleStartFlowClick();
         pipWindow.document.body.append(controlBtn);
 
         const backBtn = pipWindow.document.createElement('button');

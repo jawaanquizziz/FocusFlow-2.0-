@@ -9,6 +9,7 @@ import Admin from './pages/Admin';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
 import Reports from './pages/Reports';
+import FeedbackWidget from './components/FeedbackWidget';
 import Background from './components/Background';
 import SplashScreen from './components/SplashScreen';
 import Auth from './pages/Auth';
@@ -69,6 +70,9 @@ function App() {
                                 <Route path="/privacy" element={<Privacy />} />
                                 <Route path="*" element={<Navigate to="/" replace />} />
                             </Routes>
+
+                            {/* Floating Global Feedback Widget */}
+                            <FeedbackWidget />
                         </motion.div>
                     )}
                 </AnimatePresence>

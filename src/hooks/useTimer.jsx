@@ -49,19 +49,57 @@ const logSession = (durationSeconds, mode, taskName = null) => {
 export const TimerContext = createContext(null);
 
 export const TimerProvider = ({ children }) => {
-  const [mode, setMode] = useState(MODES.POMODORO);
+  const [mode, setMode] = useState(() => {
+    const saved = localStorage.getItem('timerState');
+    if (saved) return JSON.parse(saved).mode;
+    return MODES.POMODORO;
+  });
+
   const [settings, setSettings] = useState(() => {
     const saved = localStorage.getItem('timerSettings');
     return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
   });
   
-  const [timeLeft, setTimeLeft] = useState(settings[MODES.POMODORO]);
-  const [isRunning, setIsRunning] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(() => {
+    const saved = localStorage.getItem('timerState');
+    if (saved) {
+      const state = JSON.parse(saved);
+      if (state.isRunning) {
+        const elapsed = Math.floor((Date.now() - state.lastUpdated) / 1000);
+        return state.mode === MODES.STOPWATCH 
+          ? state.timeLeft + elapsed 
+          : Math.max(0, state.timeLeft - elapsed);
+      }
+      return state.timeLeft;
+    }
+    return settings[MODES.POMODORO];
+  });
+
+  const [isRunning, setIsRunning] = useState(() => {
+    const saved = localStorage.getItem('timerState');
+    if (saved) {
+      const state = JSON.parse(saved);
+      if (state.isRunning) {
+        const elapsed = Math.floor((Date.now() - state.lastUpdated) / 1000);
+        const newTime = state.mode === MODES.STOPWATCH 
+          ? state.timeLeft + elapsed 
+          : Math.max(0, state.timeLeft - elapsed);
+        return newTime > 0 || state.mode === MODES.STOPWATCH;
+      }
+    }
+    return false;
+  });
+
   const [totalFocusSeconds, setTotalFocusSeconds] = useState(() =>
     parseInt(localStorage.getItem('focusSeconds') || '0')
   );
   
-  const currentTaskRef = useRef(null);
+  const currentTaskRef = useRef((() => {
+    const saved = localStorage.getItem('timerState');
+    try {
+        return saved ? JSON.parse(saved).currentTask : null;
+    } catch (e) { return null; }
+  })());
   const intervalRef = useRef(null);
   const startTimeRef = useRef(null);
   const pausedTimeRef = useRef(0);
@@ -74,6 +112,24 @@ export const TimerProvider = ({ children }) => {
   useEffect(() => {
     localStorage.setItem('focusSeconds', totalFocusSeconds.toString());
   }, [totalFocusSeconds]);
+
+  // Persist timer state every time it changes
+  useEffect(() => {
+    localStorage.setItem('timerState', JSON.stringify({
+      mode,
+      timeLeft,
+      isRunning,
+      lastUpdated: Date.now(),
+      currentTask: currentTaskRef.current
+    }));
+  }, [mode, timeLeft, isRunning]);
+
+  // Auto-start if it was running before reload
+  useEffect(() => {
+    if (isRunning && !intervalRef.current) {
+        startTimer(currentTaskRef.current);
+    }
+  }, []);
 
   const switchMode = useCallback((newMode) => {
     setIsRunning(false);

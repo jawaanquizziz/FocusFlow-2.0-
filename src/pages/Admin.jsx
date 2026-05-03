@@ -39,7 +39,7 @@ const fmtTime = (s) => {
 };
 
 const Admin = () => {
-    const { user } = useAuth();
+    const { user, loading: authLoading } = useAuth();
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -51,10 +51,12 @@ const Admin = () => {
 
     const isAdmin = user && (
         ADMIN_EMAILS.includes(user.email) ||
-        user.uid === 'admin' // or hardcode your own UID here
+        user.uid === 'admin'
     );
 
     useEffect(() => {
+        if (authLoading) return; // Wait for auth to load
+
         if (!isAdmin) {
             setLoading(false);
             return;
@@ -129,6 +131,12 @@ const Admin = () => {
 
     const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
     const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } };
+
+    if (authLoading) return (
+        <div className="min-h-screen flex items-center justify-center">
+            <div className="w-12 h-12 border-4 border-brand border-t-transparent rounded-full animate-spin" />
+        </div>
+    );
 
     if (!isAdmin) return (
         <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-8">

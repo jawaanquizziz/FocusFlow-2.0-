@@ -127,14 +127,15 @@
 
 /* ── Scrollbar ─────────────────────────────────────────────────── */
 @layer utilities {
-  .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+  .custom-scrollbar::-webkit-scrollbar { width: 5px; }
   .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(var(--brand-rgb), 0.25);
-    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(var(--brand-rgb), 0.15) 0%, rgba(var(--brand-rgb), 0.35) 50%, rgba(var(--brand-rgb), 0.15) 100%);
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(var(--brand-rgb), 0.45);
+    background: linear-gradient(180deg, rgba(var(--brand-rgb), 0.3) 0%, rgba(var(--brand-rgb), 0.5) 50%, rgba(var(--brand-rgb), 0.3) 100%);
   }
 
   /* Focus ring */

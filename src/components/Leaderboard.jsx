@@ -14,7 +14,7 @@ const TwitterIcon = ({ size = 18 }) => (
 );
 
 import { db } from '../services/firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../hooks/useAuth';
 
 /* ─── Avatar helper ─────────────────────────────────────────────────── */
@@ -253,7 +253,27 @@ const Leaderboard = () => {
     const [shareTarget, setShareTarget] = useState(null);
     const [error, setError] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'active', 'offline'
     const { user } = useAuth();
+
+    useEffect(() => {
+        if (!user?.uid) return;
+
+        // Update lastActive timestamp on mount and periodically
+        const updateStatus = async () => {
+            try {
+                await setDoc(doc(db, 'users', user.uid), {
+                    lastActive: serverTimestamp()
+                }, { merge: true });
+            } catch (e) {
+                console.error('Failed to update status:', e);
+            }
+        };
+
+        updateStatus();
+        const interval = setInterval(updateStatus, 3 * 60 * 1000); // every 3 mins
+        return () => clearInterval(interval);
+    }, [user?.uid]);
 
     useEffect(() => {
         // Use real-time listener instead of polling
@@ -269,6 +289,7 @@ const Leaderboard = () => {
                     treesPlanted: Number(data.treesPlanted || 0),
                     sessionsCount: Number(data.sessionsCount || 0),
                     totalFocusTime: Number(data.totalFocusTime || 0),
+                    lastActive: data.lastActive,
                 };
             });
 
@@ -301,6 +322,13 @@ const Leaderboard = () => {
         if (!s) return '0m';
         const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
         return h > 0 ? `${h}h ${m}m` : `${m}m`;
+    };
+
+    const getMillis = (ts) => {
+        if (!ts) return 0;
+        if (typeof ts.toMillis === 'function') return ts.toMillis();
+        if (ts.seconds) return ts.seconds * 1000;
+        return 0;
     };
 
     const rankStyles = [
@@ -338,7 +366,7 @@ const Leaderboard = () => {
                                     <span className="opacity-50">•</span>
                                     <span className="text-emerald-400">{rankings.filter(r => r.treesPlanted > 0).length} Planters</span>
                                     <span className="opacity-50">•</span>
-                                    <span className="text-brand">{rankings.reduce((sum, r) => sum + r.treesPlanted, 0)} Trees</span>
+                        <span className="text-brand">{rankings.reduce((sum, r) => sum + r.treesPlanted, 0)} Trees</span>
                                 </>
                             )}
                         </div>
@@ -350,17 +378,47 @@ const Leaderboard = () => {
                 </div>
 
                 {/* Search Bar */}
-                <div className="relative mb-4 group px-1">
-                    <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-text-muted group-focus-within:text-brand transition-colors">
-                        <SearchIcon size={14} />
+                <div className="relative mb-5 group px-1">
+                    <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none text-text-muted group-focus-within:text-brand transition-all duration-300">
+                        <SearchIcon size={16} />
                     </div>
                     <input
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search planters..."
-                        className="w-full bg-white/5 border border-white/10 rounded-2xl py-2.5 pl-11 pr-4 text-xs focus:outline-none focus:border-brand/50 focus:bg-white/10 transition-all placeholder:text-text-muted/50"
+                        placeholder="Search top planters..."
+                        className="input-premium w-full rounded-[1.25rem] py-3.5 pl-12 pr-12 text-sm text-white placeholder:text-text-muted/40 font-medium"
                     />
+                    <AnimatePresence>
+                        {searchQuery && (
+                            <motion.button
+                                initial={{ opacity: 0, scale: 0.8 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.8 }}
+                                onClick={() => setSearchQuery('')}
+                                className="absolute inset-y-0 right-4 flex items-center p-2 text-text-muted hover:text-white transition-colors"
+                            >
+                                <X size={16} className="bg-white/10 rounded-full p-0.5" />
+                            </motion.button>
+                        )}
+                    </AnimatePresence>
+                </div>
+
+                {/* Status Filters */}
+                <div className="flex p-1 bg-white/5 rounded-2xl mb-5 gap-1">
+                    {['all', 'active', 'offline'].map((f) => (
+                        <button
+                            key={f}
+                            onClick={() => setStatusFilter(f)}
+                            className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all
+                                ${statusFilter === f 
+                                    ? 'bg-brand text-white shadow-lg shadow-brand/20' 
+                                    : 'text-text-muted hover:text-white hover:bg-white/5'
+                                }`}
+                        >
+                            {f}
+                        </button>
+                    ))}
                 </div>
 
                 {/* Column labels */}
@@ -374,7 +432,7 @@ const Leaderboard = () => {
                 )}
 
                 {/* List */}
-                <div className="flex-1 space-y-2 overflow-y-auto custom-scrollbar pr-1">
+                <div className="flex-1 space-y-2 overflow-y-auto custom-scrollbar pr-2 min-h-[300px] max-h-[450px]">
                     {error ? (
                         <div className="flex flex-col items-center justify-center h-32 gap-3 text-center px-4">
                             <span className="text-4xl">⚠️</span>
@@ -391,12 +449,22 @@ const Leaderboard = () => {
                     ) : (
                         <AnimatePresence mode="popLayout">
                             {rankings
-                                .filter(r => 
-                                    r.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                                    r.id.toLowerCase().includes(searchQuery.toLowerCase())
-                                )
+                                .filter(r => {
+                                    const matchesSearch = r.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                                        r.id.toLowerCase().includes(searchQuery.toLowerCase());
+                                    
+                                    if (!matchesSearch) return false;
+
+                                    if (statusFilter === 'all') return true;
+                                    
+                                    const lastActiveMillis = getMillis(r.lastActive);
+                                    const isActive = !!(lastActiveMillis && (Date.now() - lastActiveMillis) < 5 * 60 * 1000);
+                                    return statusFilter === 'active' ? isActive : !isActive;
+                                })
                                 .map((ranker, index) => {
                                 const me = isMe(ranker.id);
+                                const lastActiveMillis = getMillis(ranker.lastActive);
+                                const isActive = !!(lastActiveMillis && (Date.now() - lastActiveMillis) < 5 * 60 * 1000);
                                 const style = rankStyles[index] || { bg: 'bg-white/3', border: 'border-transparent', text: 'text-text-muted', glow: '' };
 
                                 return (
@@ -417,7 +485,12 @@ const Leaderboard = () => {
 
                                         {/* Name + avatar */}
                                         <div className="flex items-center gap-2 min-w-0">
-                                            <Avatar photoURL={ranker.photoURL} name={ranker.name} size={26} />
+                                            <div className="relative">
+                                                <Avatar photoURL={ranker.photoURL} name={ranker.name} size={26} />
+                                                {isActive && (
+                                                    <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 border-2 border-[#0f172a] rounded-full shadow-[0_0_8px_rgba(34,197,94,0.5)] animate-pulse" />
+                                                )}
+                                            </div>
                                             <div className="min-w-0">
                                                 <p className="text-xs font-bold truncate flex items-center gap-1">
                                                     {ranker.name}

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { db } from '../services/firebase';
-import { collection, getDocs, deleteDoc, doc, orderBy, query } from 'firebase/firestore';
+import { collection, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 
 // Coloured avatar (same helper as Profile / Leaderboard)
 const Avatar = ({ photoURL, name, size = 32 }) => {
@@ -54,28 +54,47 @@ const Admin = () => {
         user.uid === 'admin' // or hardcode your own UID here
     );
 
-    const fetchUsers = async () => {
+    useEffect(() => {
+        if (!isAdmin) {
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
-        try {
-            const snap = await getDocs(collection(db, 'users'));
-            const userList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-            // Sort by createdAt descending locally to avoid omitting users without the field
+        const q = collection(db, 'users');
+        
+        const unsubscribe = onSnapshot(q, (snap) => {
+            console.log(`Admin: Received ${snap.docs.length} users from Firestore`);
+            const userList = snap.docs.map(d => {
+                const data = d.data();
+                return {
+                    id: d.id,
+                    ...data,
+                    // Ensure these are numbers and exist
+                    treesPlanted: Number(data.treesPlanted || 0),
+                    sessionsCount: Number(data.sessionsCount || 0),
+                    totalFocusTime: Number(data.totalFocusTime || 0),
+                    name: data.name || data.displayName || 'Anonymous User'
+                };
+            });
+            
+            // Sort by activity/creation
             userList.sort((a, b) => {
                 const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
                 const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
                 return bTime - aTime;
             });
+            
             setUsers(userList);
-            setUsers(userList);
-        } catch (e) {
-            console.error('Admin fetch error:', e);
-            setError(e.message);
-        } finally {
             setLoading(false);
-        }
-    };
+        }, (e) => {
+            console.error('Admin Panel Sync Error:', e);
+            setError(e.message);
+            setLoading(false);
+        });
 
-    useEffect(() => { fetchUsers(); }, []);
+        return () => unsubscribe();
+    }, [isAdmin]);
 
     const handleSort = (key) => {
         if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');

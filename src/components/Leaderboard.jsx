@@ -13,7 +13,7 @@ const TwitterIcon = ({ size = 18 }) => (
 );
 
 import { db } from '../services/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { useAuth } from '../hooks/useAuth';
 
 /* ─── Avatar helper ─────────────────────────────────────────────────── */
@@ -221,19 +221,22 @@ const Leaderboard = () => {
     const [error, setError] = useState(null);
     const { user } = useAuth();
 
-    const fetchAll = async () => {
-        try {
-            // Fetch ALL users — sort locally so no Firestore index needed
-            // and every user (including those with 0 trees) is visible
-            const snap = await getDocs(collection(db, 'users'));
-            const all = snap.docs.map(d => ({
-                id: d.id,
-                name: d.data().name || d.data().displayName || 'Anonymous',
-                photoURL: d.data().photoURL || '',
-                treesPlanted: Number(d.data().treesPlanted) || 0,
-                sessionsCount: Number(d.data().sessionsCount) || 0,
-                totalFocusTime: Number(d.data().totalFocusTime) || 0,
-            }));
+    useEffect(() => {
+        // Use real-time listener instead of polling
+        const q = collection(db, 'users');
+        
+        const unsubscribe = onSnapshot(q, (snap) => {
+            const all = snap.docs.map(d => {
+                const data = d.data();
+                return {
+                    id: d.id,
+                    name: data.name || data.displayName || 'Anonymous',
+                    photoURL: data.photoURL || '',
+                    treesPlanted: Number(data.treesPlanted || 0),
+                    sessionsCount: Number(data.sessionsCount || 0),
+                    totalFocusTime: Number(data.totalFocusTime || 0),
+                };
+            });
 
             // Sort by trees descending, then by sessions as tiebreaker
             all.sort((a, b) => b.treesPlanted - a.treesPlanted || b.sessionsCount - a.sessionsCount);
@@ -251,18 +254,13 @@ const Leaderboard = () => {
                 }
             }
             setLoading(false);
-        } catch (e) {
-            console.error('Leaderboard fetch error:', e);
+        }, (e) => {
+            console.error('Leaderboard Sync Error:', e);
             setError(e.message);
             setLoading(false);
-        }
-    };
+        });
 
-    useEffect(() => {
-        fetchAll();
-        // Refresh every 30 seconds to stay up-to-date
-        const interval = setInterval(fetchAll, 30000);
-        return () => clearInterval(interval);
+        return () => unsubscribe();
     }, [user?.uid]);
 
     const fmtTime = (s) => {

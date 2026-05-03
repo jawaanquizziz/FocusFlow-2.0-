@@ -29,67 +29,55 @@ export const AuthProvider = ({ children }) => {
                 // Set user immediately from Firebase Auth — don't block on Firestore
                 setUser(firebaseUser);
 
-                // Enrich with Firestore data in background (optional, non-blocking)
+                // Enrich with Firestore data in background
                 try {
-                    const snap = await getDoc(doc(db, 'users', firebaseUser.uid));
+                    const userDocRef = doc(db, 'users', firebaseUser.uid);
+                    const snap = await getDoc(userDocRef);
+                    
                     if (snap.exists()) {
                         const data = snap.data();
                         setUser({ ...firebaseUser, ...data });
 
-                        // Synchronize local progress to Firestore if local is greater
-                        try {
-                            const localSessions = JSON.parse(localStorage.getItem('focusSessions') || '[]');
-                            const localFocusSeconds = parseInt(localStorage.getItem('focusSeconds') || '0');
-                            
-                            const firestoreTrees = data.treesPlanted || 0;
-                            const firestoreSessions = data.sessionsCount || 0;
-                            const localTrees = localSessions.filter(s => s.mode === 'pomodoro').length;
-                            
-                            if (localTrees > firestoreTrees || localFocusSeconds > (data.totalFocusTime || 0)) {
-                                const newTrees = Math.max(localTrees, firestoreTrees);
-                                const newSessions = Math.max(localSessions.length, firestoreSessions);
-                                const newFocusTime = Math.max(localFocusSeconds, data.totalFocusTime || 0);
-                                
-                                await setDoc(doc(db, 'users', firebaseUser.uid), {
-                                    treesPlanted: newTrees,
-                                    sessionsCount: newSessions,
-                                    totalFocusTime: newFocusTime,
-                                }, { merge: true });
-                                
-                                setUser(prev => ({
-                                    ...prev, 
-                                    treesPlanted: newTrees, 
-                                    sessionsCount: newSessions, 
-                                    totalFocusTime: newFocusTime 
-                                }));
-                            }
-                        } catch (e) {
-                            console.error('Local sync failed', e);
+                        // Update missing profile info if needed
+                        if (!data.name || !data.email || !data.photoURL) {
+                            await setDoc(userDocRef, {
+                                name: data.name || firebaseUser.displayName || 'Anonymous',
+                                email: data.email || firebaseUser.email || '',
+                                photoURL: data.photoURL || firebaseUser.photoURL || '',
+                            }, { merge: true });
                         }
-                    } else {
-                        // User doc doesn't exist yet, create it with local data if any
+
+                        // Sync local stats to cloud
                         const localSessions = JSON.parse(localStorage.getItem('focusSessions') || '[]');
                         const localFocusSeconds = parseInt(localStorage.getItem('focusSeconds') || '0');
                         const localTrees = localSessions.filter(s => s.mode === 'pomodoro').length;
+
+                        if (localTrees > (data.treesPlanted || 0) || localFocusSeconds > (data.totalFocusTime || 0)) {
+                            await setDoc(userDocRef, {
+                                treesPlanted: Math.max(localTrees, data.treesPlanted || 0),
+                                sessionsCount: Math.max(localSessions.length, data.sessionsCount || 0),
+                                totalFocusTime: Math.max(localFocusSeconds, data.totalFocusTime || 0),
+                            }, { merge: true });
+                        }
+                    } else {
+                        // CRITICAL: If they exist in Auth but NOT Firestore, create the doc now
+                        console.log("User doc missing in Firestore. Creating now...");
+                        const localSessions = JSON.parse(localStorage.getItem('focusSessions') || '[]');
+                        const localFocusSeconds = parseInt(localStorage.getItem('focusSeconds') || '0');
                         
-                        await setDoc(doc(db, 'users', firebaseUser.uid), {
+                        await setDoc(userDocRef, {
                             name: firebaseUser.displayName || 'Anonymous',
                             email: firebaseUser.email || '',
                             photoURL: firebaseUser.photoURL || '',
                             createdAt: new Date().toISOString(),
                             totalFocusTime: localFocusSeconds,
-                            treesPlanted: localTrees,
+                            treesPlanted: localSessions.filter(s => s.mode === 'pomodoro').length,
                             sessionsCount: localSessions.length,
                         }, { merge: true });
-                        
-                        setUser({ 
-                            ...firebaseUser, 
-                            totalFocusTime: localFocusSeconds, 
-                            treesPlanted: localTrees, 
-                            sessionsCount: localSessions.length 
-                        });
                     }
-                } catch (_) { /* Firestore failure is not critical */ }
+                } catch (err) { 
+                    console.error('Firestore Sync Error:', err);
+                }
             } else {
                 setUser(null);
             }

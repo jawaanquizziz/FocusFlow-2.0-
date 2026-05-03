@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Settings as SettingsIcon, Clock, Calendar, Bell, Palette, LogOut, TreePine, Shield, UserPlus, X, Share2, Link as LinkIcon, Check, BarChart2, TrendingUp, Zap } from 'lucide-react';
+import { Settings as SettingsIcon, Clock, Calendar, Bell, Palette, LogOut, TreePine, Shield, UserPlus, X, Share2, Link as LinkIcon, Check, BarChart2, TrendingUp, Zap, Monitor, ExternalLink } from 'lucide-react';
 import { useTimer } from '../hooks/useTimer.jsx';
 import TimerDisplay from '../components/TimerDisplay';
 import TodoList from '../components/TodoList';
@@ -66,9 +66,16 @@ const InviteModal = ({ onClose, user }) => {
             });
             
             canvas.toBlob(async (blob) => {
-                if (!blob) return;
+                if (!blob) {
+                    setIsCapturing(false);
+                    return;
+                }
+                
                 try {
                     const file = new File([blob], 'focusflow-invite.png', { type: 'image/png' });
+                    
+                    // On Desktop/Laptop, navigator.share with files is often unsupported
+                    // We check if it's available, otherwise we download directly
                     if (navigator.canShare && navigator.canShare({ files: [file] })) {
                         await navigator.share({
                             files: [file],
@@ -76,15 +83,18 @@ const InviteModal = ({ onClose, user }) => {
                             text: `${shareText}\n${shareUrl}`
                         });
                     } else {
+                        // DOWNLOAD FALLBACK (Better for Laptops)
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;
-                        a.download = 'focusflow-invite-card.png';
+                        a.download = `focusflow-invite-${Date.now()}.png`;
+                        document.body.appendChild(a);
                         a.click();
+                        document.body.removeChild(a);
                         URL.revokeObjectURL(url);
                     }
                 } catch (e) {
-                    console.error('Sharing failed', e);
+                    console.error('Sharing/Download failed', e);
                 }
                 setIsCapturing(false);
             }, 'image/png');
@@ -213,10 +223,171 @@ const Home = () => {
   const [isThemeOpen, setIsThemeOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isGroveMode, setIsGroveMode] = useState(true);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const pipWindowRef = useRef(null);
+
+  // Keep PIP window in sync with main state
+  React.useEffect(() => {
+      const pip = pipWindowRef.current;
+      if (pip && pip.document) {
+          const doc = pip.document;
+          const timeDiv = doc.querySelector('.time');
+          const controlBtn = doc.querySelector('.btn');
+          const taskDiv = doc.querySelector('.task');
+
+          // Update Time
+          if (timeDiv) {
+              const m = Math.floor(timeLeft / 60);
+              const s = timeLeft % 60;
+              timeDiv.innerText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+          }
+
+          // Update Button State & Click Handler (CRITICAL: Re-bind to fresh functions)
+          if (controlBtn) {
+              controlBtn.onclick = () => {
+                  if (isRunning) stopTimer();
+                  else startTimer();
+              };
+              
+              if (isRunning) {
+                  controlBtn.innerText = 'PAUSE';
+                  controlBtn.className = 'btn btn-pause';
+              } else {
+                  controlBtn.innerText = 'START';
+                  controlBtn.className = 'btn btn-play';
+              }
+          }
+
+          if (taskDiv) {
+              taskDiv.innerText = currentTask || 'Focus Session';
+          }
+      }
+  }, [timeLeft, isRunning, currentTask, startTimer, stopTimer]);
+
+  // PIP (Floating Timer) Feature
+  const handlePip = async () => {
+    if (!document.pictureInPictureEnabled && !window.documentPictureInPicture) {
+      alert('Your browser does not support Picture-in-Picture mode. Please use Chrome or Edge.');
+      return;
+    }
+
+    if (pipWindowRef.current) {
+        pipWindowRef.current.close();
+        pipWindowRef.current = null;
+        return;
+    }
+
+    try {
+      if (window.documentPictureInPicture) {
+        const pipWindow = await window.documentPictureInPicture.requestWindow({
+          width: 320,
+          height: 220,
+        });
+
+        pipWindowRef.current = pipWindow;
+        pipWindow.onpagehide = () => { pipWindowRef.current = null; };
+
+        const style = document.createElement('style');
+        style.textContent = `
+          body { 
+            margin: 0; 
+            background: #0f172a; 
+            color: white; 
+            font-family: system-ui, sans-serif; 
+            display: flex; 
+            flex-direction: column;
+            align-items: center; 
+            justify-content: center; 
+            height: 100vh;
+            overflow: hidden;
+            border: 2px solid #5865F2;
+          }
+          .time { font-size: 3.5rem; font-weight: 900; font-family: monospace; color: #5865F2; line-height: 1; }
+          .task { font-size: 0.7rem; font-weight: 800; color: rgba(255,255,255,0.4); text-transform: uppercase; margin-top: 8px; letter-spacing: 0.1em; text-align: center; max-width: 90%; margin-bottom: 15px; }
+          .btn { 
+            padding: 8px 24px; 
+            border-radius: 12px; 
+            border: none; 
+            font-weight: 900; 
+            font-size: 0.8rem; 
+            cursor: pointer; 
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            width: 160px;
+          }
+          .btn-play { background: #10b981; color: white; }
+          .btn-pause { background: #ef4444; color: white; }
+          .btn-back { background: rgba(255,255,255,0.1); color: white; margin-top: 8px; border: 1px solid rgba(255,255,255,0.1); width: 160px; }
+          .pip-close { position: absolute; top: 10px; right: 10px; background: none; border: none; color: white; cursor: pointer; opacity: 0.5; }
+        `;
+        pipWindow.document.head.append(style);
+
+        const closeBtn = pipWindow.document.createElement('button');
+        closeBtn.className = 'pip-close';
+        closeBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+        closeBtn.onclick = () => pipWindow.close();
+        pipWindow.document.body.append(closeBtn);
+
+        const timeDiv = pipWindow.document.createElement('div');
+        timeDiv.className = 'time';
+        pipWindow.document.body.append(timeDiv);
+
+        const taskDiv = pipWindow.document.createElement('div');
+        taskDiv.className = 'task';
+        pipWindow.document.body.append(taskDiv);
+
+        const controlBtn = pipWindow.document.createElement('button');
+        controlBtn.className = 'btn';
+        pipWindow.document.body.append(controlBtn);
+
+        const backBtn = pipWindow.document.createElement('button');
+        backBtn.className = 'btn btn-back';
+        backBtn.innerText = 'BACK TO APP';
+        backBtn.onclick = () => {
+            pipWindow.close();
+            window.focus();
+        };
+        pipWindow.document.body.append(backBtn);
+        return;
+      }
+
+      // Fallback: Canvas to Video PiP
+      const canvas = document.createElement('canvas');
+      canvas.width = 300;
+      canvas.height = 200;
+      const ctx = canvas.getContext('2d');
+      const video = document.createElement('video');
+      video.muted = true;
+      video.srcObject = canvas.captureStream();
+      video.play();
+
+      const draw = () => {
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, 300, 200);
+        ctx.fillStyle = '#5865F2';
+        ctx.font = 'bold 60px monospace';
+        ctx.textAlign = 'center';
+        const m = Math.floor(timeLeft / 60);
+        const s = timeLeft % 60;
+        ctx.fillText(`${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`, 150, 110);
+        
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.fillText(currentTask || 'FOCUSING...', 150, 150);
+
+        if (video.srcObject) requestAnimationFrame(draw);
+      };
+      requestAnimationFrame(draw);
+
+      await video.requestPictureInPicture();
+    } catch (err) {
+      console.error('PIP failed', err);
+    }
+  };
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [taskInput, setTaskInput] = useState('');
   const [rewardMsg, setRewardMsg] = useState(null);
-  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [notificationsList, setNotificationsList] = useState([]);
   
   const { user, logout } = useAuth();
@@ -496,6 +667,16 @@ const Home = () => {
           variants={itemVariants}
           className="col-span-12 lg:col-span-8 glass flex flex-col items-center justify-center py-12 px-6 rounded-[2.5rem] relative group border border-white/10"
         >
+            <div className="absolute top-8 left-8 flex gap-2">
+                <button 
+                    onClick={handlePip}
+                    className="p-3 rounded-2xl bg-white/5 text-text-muted hover:text-brand hover:bg-brand/10 transition-all opacity-0 group-hover:opacity-100"
+                    title="Pop-out Floating Timer"
+                >
+                    <ExternalLink size={24} />
+                </button>
+            </div>
+
             <button 
                 onClick={() => setIsSettingsOpen(true)}
                 className="absolute top-8 right-8 text-text-muted hover:text-white transition-all p-3 hover:bg-white/5 rounded-2xl opacity-0 group-hover:opacity-100"
@@ -547,19 +728,23 @@ const Home = () => {
             </div>
 
             <div className="mt-12 flex gap-4 w-full max-w-sm justify-center">
-            <button
-                onClick={handleStartFlowClick}
-                className={`flex-[2] ${isRunning ? 'bg-white/10 hover:bg-white/20' : 'bg-brand shadow-[0_12px_40px_rgba(88,101,242,0.4)]'} text-white font-bold py-5 rounded-3xl text-xl transition-all active:scale-95 group relative overflow-hidden`}
-            >
-                <span className="relative z-10">{isRunning ? 'PAUSE' : 'START FLOW'}</span>
-                {!isRunning && <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />}
-            </button>
-            <button
-                onClick={resetTimer}
-                className="flex-1 bg-white/5 hover:bg-white/10 border border-white/5 rounded-3xl text-text-muted hover:text-white transition-all flex items-center justify-center active:scale-95"
-            >
-                <Clock size={24} />
-            </button>
+                <button
+                    onClick={handleStartFlowClick}
+                    className={`flex-[2] py-5 rounded-3xl text-xl font-black tracking-[0.2em] transition-all active:scale-95 group relative overflow-hidden ${
+                        isRunning 
+                        ? 'bg-red-500/20 text-red-400 border-2 border-red-500/30 shadow-red-500/10' 
+                        : 'bg-brand shadow-[0_12px_40px_rgba(88,101,242,0.4)] text-white'
+                    }`}
+                >
+                    <span className="relative z-10">{isRunning ? 'PAUSE' : 'START'}</span>
+                    {!isRunning && <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />}
+                </button>
+                <button
+                    onClick={resetTimer}
+                    className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-3xl text-text-muted hover:text-white transition-all font-black text-xs tracking-widest active:scale-95"
+                >
+                    RESET
+                </button>
             </div>
         </motion.section>
 

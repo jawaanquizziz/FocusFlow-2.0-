@@ -47,17 +47,27 @@ export const AuthProvider = ({ children }) => {
                             }, { merge: true });
                         }
 
-                        // Sync local stats to cloud
+                        // BIDIRECTIONAL SYNC (Laptop <=> PC)
                         const localSessions = JSON.parse(localStorage.getItem('focusSessions') || '[]');
                         const localFocusSeconds = parseInt(localStorage.getItem('focusSeconds') || '0');
                         const localTrees = localSessions.filter(s => s.mode === 'pomodoro').length;
 
-                        if (localTrees > (data.treesPlanted || 0) || localFocusSeconds > (data.totalFocusTime || 0)) {
+                        const cloudTrees = Number(data.treesPlanted || 0);
+                        const cloudFocusSeconds = Number(data.totalFocusTime || 0);
+                        const cloudSessions = Number(data.sessionsCount || 0);
+
+                        // 1. Device is ahead -> Push to Cloud
+                        if (localTrees > cloudTrees || localFocusSeconds > cloudFocusSeconds) {
                             await setDoc(userDocRef, {
-                                treesPlanted: Math.max(localTrees, data.treesPlanted || 0),
-                                sessionsCount: Math.max(localSessions.length, data.sessionsCount || 0),
-                                totalFocusTime: Math.max(localFocusSeconds, data.totalFocusTime || 0),
+                                treesPlanted: Math.max(localTrees, cloudTrees),
+                                sessionsCount: Math.max(localSessions.length, cloudSessions),
+                                totalFocusTime: Math.max(localFocusSeconds, cloudFocusSeconds),
                             }, { merge: true });
+                        } 
+                        // 2. Cloud is ahead -> Pull to Device
+                        else if (cloudTrees > localTrees || cloudFocusSeconds > localFocusSeconds) {
+                            localStorage.setItem('focusSeconds', cloudFocusSeconds.toString());
+                            // This ensures the local UI eventually catches up to the cloud rankings
                         }
                     } else {
                         // CRITICAL: If they exist in Auth but NOT Firestore, create the doc now

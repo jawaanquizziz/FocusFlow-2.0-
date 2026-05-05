@@ -254,6 +254,10 @@ const Leaderboard = () => {
     const [error, setError] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'active', 'offline'
+    const [sortBy, setSortBy] = useState('treesPlanted'); // 'treesPlanted', 'sessionsCount', 'totalFocusTime'
+    const [dailyChampion, setDailyChampion] = useState(null);
+    const [overallChampion, setOverallChampion] = useState(null);
+    const [showHallOfFame, setShowHallOfFame] = useState(false);
     const { user } = useAuth();
 
     useEffect(() => {
@@ -280,8 +284,13 @@ const Leaderboard = () => {
         const q = collection(db, 'users');
         
         const unsubscribe = onSnapshot(q, (snap) => {
+            const todayStr = new Date().toLocaleDateString('en-CA');
+            
             const all = snap.docs.map(d => {
                 const data = d.data();
+                const userSessions = data.sessions || [];
+                const treesToday = userSessions.filter(s => s.date === todayStr && s.mode === 'pomodoro').length;
+                
                 return {
                     id: d.id,
                     name: data.name || data.displayName || 'Anonymous',
@@ -290,11 +299,32 @@ const Leaderboard = () => {
                     sessionsCount: Number(data.sessionsCount || 0),
                     totalFocusTime: Number(data.totalFocusTime || 0),
                     lastActive: data.lastActive,
+                    treesToday: treesToday,
+                    sessions: userSessions
                 };
             });
 
-            // Sort by trees descending, then by sessions as tiebreaker
-            all.sort((a, b) => b.treesPlanted - a.treesPlanted || b.sessionsCount - a.sessionsCount);
+            // Find Overall Champion (top all-time trees)
+            const sortedAllTime = [...all].sort((a, b) => b.treesPlanted - a.treesPlanted);
+            if (sortedAllTime.length > 0) setOverallChampion(sortedAllTime[0]);
+
+            // Find Daily Champion (top trees today)
+            const sortedToday = [...all].sort((a, b) => b.treesToday - a.treesToday || b.treesPlanted - a.treesPlanted);
+            if (sortedToday.length > 0 && sortedToday[0].treesToday > 0) {
+                setDailyChampion(sortedToday[0]);
+            } else {
+                setDailyChampion(null);
+            }
+
+            // Sort logic for display
+            all.sort((a, b) => {
+                const valA = a[sortBy] || 0;
+                const valB = b[sortBy] || 0;
+                if (valB !== valA) return valB - valA;
+                // Tiebreakers
+                if (sortBy !== 'treesPlanted') return b.treesPlanted - a.treesPlanted;
+                return b.sessionsCount - a.sessionsCount;
+            });
 
             const rankedAll = all.map((r, i) => ({ ...r, rank: i + 1 }));
             setRankings(rankedAll);
@@ -316,7 +346,7 @@ const Leaderboard = () => {
         });
 
         return () => unsubscribe();
-    }, [user?.uid]);
+    }, [user?.uid, sortBy]);
 
     const fmtTime = (s) => {
         if (!s) return '0m';
@@ -371,11 +401,54 @@ const Leaderboard = () => {
                             )}
                         </div>
                     </div>
-                    <div className="ml-auto flex items-center gap-1.5 bg-green-500/10 border border-green-500/20 px-2.5 py-1 rounded-full shrink-0">
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                        <span className="text-[10px] text-green-400 font-black uppercase tracking-wider hidden sm:inline-block">Live</span>
-                    </div>
+                    <button 
+                        onClick={() => setShowHallOfFame(!showHallOfFame)}
+                        className={`p-2.5 rounded-2xl transition-all border ${showHallOfFame ? 'bg-yellow-500/20 border-yellow-500/30 text-yellow-500' : 'bg-white/5 border-white/10 text-text-muted hover:text-white'}`}
+                        title="Hall of Fame">
+                        <Crown size={20} />
+                    </button>
                 </div>
+
+                {/* Champion of the Day - Hall of Fame Section */}
+                <AnimatePresence>
+                    {(showHallOfFame || dailyChampion) && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden mb-5"
+                        >
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {dailyChampion && (
+                                    <div className="bg-gradient-to-br from-emerald-500/20 to-brand/10 border border-emerald-500/30 rounded-3xl p-4 relative overflow-hidden group">
+                                        <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:scale-125 transition-transform"><Medal size={40} className="text-emerald-400" /></div>
+                                        <p className="text-[8px] font-black uppercase tracking-[0.2em] text-emerald-400 mb-2">Champion of the Day 🏆</p>
+                                        <div className="flex items-center gap-3">
+                                            <Avatar photoURL={dailyChampion.photoURL} name={dailyChampion.name} size={40} />
+                                            <div>
+                                                <h4 className="text-sm font-black text-white">{dailyChampion.name}</h4>
+                                                <p className="text-[10px] text-emerald-400 font-bold">{dailyChampion.treesToday} Trees Today</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                                {overallChampion && (
+                                    <div className="bg-gradient-to-br from-yellow-500/20 to-orange-500/10 border border-yellow-500/30 rounded-3xl p-4 relative overflow-hidden group">
+                                        <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:scale-125 transition-transform"><Crown size={40} className="text-yellow-400" /></div>
+                                        <p className="text-[8px] font-black uppercase tracking-[0.2em] text-yellow-500 mb-2">Overall Champion 👑</p>
+                                        <div className="flex items-center gap-3">
+                                            <Avatar photoURL={overallChampion.photoURL} name={overallChampion.name} size={40} />
+                                            <div>
+                                                <h4 className="text-sm font-black text-white">{overallChampion.name}</h4>
+                                                <p className="text-[10px] text-yellow-500 font-bold">{overallChampion.treesPlanted} Trees All-Time</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
                 {/* Search Bar */}
                 <div className="relative mb-5 group px-1">
@@ -404,21 +477,46 @@ const Leaderboard = () => {
                     </AnimatePresence>
                 </div>
 
-                {/* Status Filters */}
-                <div className="flex p-1 bg-white/5 rounded-2xl mb-5 gap-1">
-                    {['all', 'active', 'offline'].map((f) => (
-                        <button
-                            key={f}
-                            onClick={() => setStatusFilter(f)}
-                            className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all
-                                ${statusFilter === f 
-                                    ? 'bg-brand text-white shadow-lg shadow-brand/20' 
-                                    : 'text-text-muted hover:text-white hover:bg-white/5'
-                                }`}
-                        >
-                            {f}
-                        </button>
-                    ))}
+                {/* Status & Sort Filters */}
+                <div className="space-y-3 mb-5">
+                    <div className="flex p-1 bg-white/5 rounded-2xl gap-1">
+                        {['all', 'active', 'offline'].map((f) => (
+                            <button
+                                key={f}
+                                onClick={() => setStatusFilter(f)}
+                                className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all
+                                    ${statusFilter === f 
+                                        ? 'bg-brand text-white shadow-lg shadow-brand/20' 
+                                        : 'text-text-muted hover:text-white hover:bg-white/5'
+                                    }`}
+                            >
+                                {f}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="flex items-center gap-2 px-1">
+                        <span className="text-[9px] font-black uppercase tracking-widest text-text-muted/50 whitespace-nowrap">Sort By:</span>
+                        <div className="flex flex-1 p-1 bg-white/5 rounded-xl gap-1">
+                            {[
+                                { id: 'treesPlanted', label: 'Trees' },
+                                { id: 'sessionsCount', label: 'Sessions' },
+                                { id: 'totalFocusTime', label: 'Time' }
+                            ].map((s) => (
+                                <button
+                                    key={s.id}
+                                    onClick={() => setSortBy(s.id)}
+                                    className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all
+                                        ${sortBy === s.id 
+                                            ? 'bg-white/10 text-brand' 
+                                            : 'text-text-muted/60 hover:text-white hover:bg-white/5'
+                                        }`}
+                                >
+                                    {s.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                 </div>
 
                 {/* Column labels */}
@@ -426,8 +524,10 @@ const Leaderboard = () => {
                     <div className="grid grid-cols-[auto_1fr_auto_auto] gap-2 px-2 pb-2 text-[9px] font-black uppercase tracking-widest text-text-muted/50">
                         <span className="w-7" />
                         <span>Player</span>
-                        <span className="text-right">Trees</span>
-                        <span className="text-right">Sessions</span>
+                        <span className={`text-right ${sortBy === 'treesPlanted' ? 'text-brand' : ''}`}>Trees</span>
+                        <span className={`text-right ${sortBy === 'sessionsCount' ? 'text-brand' : sortBy === 'totalFocusTime' ? 'text-brand' : ''}`}>
+                            {sortBy === 'totalFocusTime' ? 'Time' : 'Sessions'}
+                        </span>
                     </div>
                 )}
 
@@ -502,26 +602,26 @@ const Leaderboard = () => {
 
                                         {/* Trees */}
                                         <div className="flex items-center justify-end gap-1 shrink-0">
-                                            <p className={`text-sm font-black ${index < 3 ? style.text : 'text-emerald-400'}`}>
-                                                {ranker.treesPlanted}
-                                            </p>
-                                            <span className="text-xs">🌳</span>
-                                        </div>
-
-                                        {/* Sessions + share */}
-                                        <div className="flex items-center gap-1.5 shrink-0">
-                                            <p className="text-xs font-black text-text-muted text-right">
-                                                ⚡{ranker.sessionsCount}
-                                            </p>
-                                            {me && (
-                                                <button
-                                                    onClick={() => setShareTarget({ ranker, rank: index + 1 })}
-                                                    className="p-1 rounded-lg bg-brand/10 text-brand hover:bg-brand/30 transition-all shadow-sm"
-                                                    title="Share Achievement">
-                                                    <Share2 size={11} />
-                                                </button>
-                                            )}
-                                        </div>
+                                             <p className={`text-sm font-black ${sortBy === 'treesPlanted' ? (index < 3 ? style.text : 'text-emerald-400') : 'text-text-muted/50'}`}>
+                                                 {ranker.treesPlanted}
+                                             </p>
+                                             <span className="text-xs">🌳</span>
+                                         </div>
+ 
+                                         {/* Sessions / Time + share */}
+                                         <div className="flex items-center gap-1.5 shrink-0 justify-end">
+                                             <p className={`text-xs font-black text-right ${sortBy !== 'treesPlanted' ? 'text-brand' : 'text-text-muted'}`}>
+                                                 {sortBy === 'totalFocusTime' ? fmtTime(ranker.totalFocusTime) : `⚡${ranker.sessionsCount}`}
+                                             </p>
+                                             {me && (
+                                                 <button
+                                                     onClick={() => setShareTarget({ ranker, rank: index + 1 })}
+                                                     className="p-1 rounded-lg bg-brand/10 text-brand hover:bg-brand/30 transition-all shadow-sm"
+                                                     title="Share Achievement">
+                                                     <Share2 size={11} />
+                                                 </button>
+                                             )}
+                                         </div>
                                     </motion.div>
                                 );
                             })}

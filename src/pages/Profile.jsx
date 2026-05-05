@@ -5,12 +5,12 @@ import {
     ArrowLeft, TreePine, Clock, Zap, Flame, Target,
     Edit3, Check, X, Camera, LogOut, Trophy, Calendar, FileText
 } from 'lucide-react';
+import Achievements from '../components/Achievements';
 import { useAuth } from '../hooks/useAuth';
 import { db } from '../services/firebase';
 import { doc, getDoc, updateDoc, collection, query, orderBy, getDocs } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
 import { auth } from '../services/firebase';
-
 // Coloured avatar
 const BigAvatar = ({ photoURL, name, size = 96 }) => {
     const initials = (name || 'A').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
@@ -92,6 +92,29 @@ const Profile = () => {
         }
         return count;
     })();
+
+    // Extra stats for achievements
+    const badgeStats = {
+        treesPlanted,
+        sessionsCount,
+        totalFocusTime: firestoreData?.totalFocusTime ?? totalFocusSeconds,
+        streak,
+        earlyBird: sessions.some(s => {
+            const h = new Date(s.timestamp).getHours();
+            return h < 8;
+        }),
+        nightOwl: sessions.some(s => {
+            const h = new Date(s.timestamp).getHours();
+            return h >= 23;
+        }),
+        maxSessionsPerDay: (() => {
+            const counts = sessions.reduce((acc, s) => {
+                acc[s.date] = (acc[s.date] || 0) + 1;
+                return acc;
+            }, {});
+            return Math.max(0, ...Object.values(counts));
+        })()
+    };
 
     const displayName = user?.displayName || firestoreData?.name || 'Anonymous';
     const photoURL = user?.photoURL || firestoreData?.photoURL || '';
@@ -220,6 +243,11 @@ const Profile = () => {
                 <StatCard icon={Flame} label="Day Streak" value={`${streak}d`} color="text-orange-400" bg="bg-orange-400/10" />
             </motion.div>
 
+            {/* Achievements */}
+            <motion.div variants={item}>
+                <Achievements stats={badgeStats} />
+            </motion.div>
+
             {/* Recent Sessions */}
             <motion.div variants={item} className="glass p-6 rounded-3xl border border-white/5">
                 <div className="flex items-center gap-3 mb-6">
@@ -260,6 +288,7 @@ const Profile = () => {
                     </div>
                 )}
             </motion.div>
+
         </motion.div>
     );
 };

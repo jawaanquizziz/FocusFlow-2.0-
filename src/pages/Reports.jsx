@@ -394,20 +394,6 @@ const Reports = () => {
                 </div>
             </motion.div>
 
-            <style jsx global>{`
-                .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-                .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
-                .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
-                .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--brand-color); }
-                
-                @media print {
-                    .min-h-screen { background: white !important; padding: 0 !important; color: black !important; }
-                    .glass { border: 1px solid #eee !important; background: white !important; box-shadow: none !important; }
-                    header, .col-span-12, .lg:col-span-8, .lg:col-span-4 { color: black !important; }
-                    button, .Link, .p-3.bg-white\/5 { display: none !important; }
-                    .text-white, .text-brand, .text-text-muted { color: black !important; }
-                }
-            `}</style>
         </div>
     );
 };

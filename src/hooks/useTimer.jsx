@@ -35,13 +35,29 @@ const logSession = (durationSeconds, mode, taskName = null) => {
   // Write to Firestore if logged in
   const user = auth.currentUser;
   if (user && db && mode === MODES.POMODORO) {
+    const todayStr = session.date;
     try {
-      setDoc(doc(db, 'users', user.uid), {
+      // We first need to check the lastSessionDate to handle resets
+      // However, to avoid a read-before-write, we can use a server-side approach or just logic here.
+      // Since we want to keep it simple and agentic, we'll use a local check if possible, 
+      // but better to just use Firestore's conditional logic if we had it.
+      // We'll update the user doc with the current date and increment/reset trees.
+      
+      const userRef = doc(db, 'users', user.uid);
+      // We use a small trick: if we store daily stats in a subcollection or dedicated field, 
+      // but for simplicity in the leaderboard, we'll just add a 'dailyTrees' and 'lastActiveDate'.
+      
+      // Since we can't easily do "reset if date changed" in a single setDoc increment without a read,
+      // we'll just store the session and let the Leaderboard component filter by today's date from the sessions array.
+      // Actually, the sessions array is already being updated!
+      
+      setDoc(userRef, {
         totalFocusTime: increment(durationSeconds),
         treesPlanted: increment(1),
         sessionsCount: increment(1),
         sessions: arrayUnion(session),
-      }, { merge: true }).catch(() => {}); // silent fail - not critical
+        lastActive: new Date().toISOString(),
+      }, { merge: true }).catch(() => {});
     } catch (_) {}
   }
 };

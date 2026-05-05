@@ -9,10 +9,11 @@ const ForestGrove = ({ progress, isRunning, mode }) => {
     const leavesRef = useRef([]);
     const [showFinish, setShowFinish] = useState(false);
     const [hoveredTree, setHoveredTree] = useState(null);
+    const prevTreesRef = useRef(undefined);
     const { user } = useAuth();
     
     const percentage = Math.min(Math.max(progress || 0, 0), 1);
-    const isPomodoro = mode === 'pomodoro';
+    const isGrowable = mode === 'pomodoro' || mode === 'stopwatch';
 
     // Extract established trees from user sessions or local storage
     const { establishedTrees, totalTrees } = useMemo(() => {
@@ -25,10 +26,10 @@ const ForestGrove = ({ progress, isRunning, mode }) => {
             sessionsToUse = user?.sessions || [];
         }
 
-        // Filter out valid pomodoro sessions that grew a tree
-        const pomodoroSessions = sessionsToUse.filter(s => s.mode === 'pomodoro');
+        // Filter out valid sessions that grew a tree
+        const treeSessions = sessionsToUse.filter(s => s.mode === 'pomodoro' || s.mode === 'stopwatch');
         
-        const trees = pomodoroSessions.map((s, i) => {
+        const trees = treeSessions.map((s, i) => {
             // Enhanced pseudo-random distribution for up to 100 trees
             const seed = (i * 137.508) % 100; 
             const heightSeed = (i * 41.3) % 40; // More depth variation
@@ -45,19 +46,20 @@ const ForestGrove = ({ progress, isRunning, mode }) => {
         
         return {
             establishedTrees: trees.slice(-100), // Show up to 100 past trees
-            totalTrees: user?.treesPlanted || pomodoroSessions.length
+            totalTrees: user?.treesPlanted || treeSessions.length
         };
     }, [user]);
 
     const baseTrees = totalTrees;
 
-    // Show finish animation
+    // Show finish animation when a new tree is added
     useEffect(() => {
-        if (percentage >= 1 && !showFinish && isPomodoro) {
+        if (prevTreesRef.current !== undefined && totalTrees > prevTreesRef.current) {
             setShowFinish(true);
             setTimeout(() => setShowFinish(false), 4000);
         }
-    }, [percentage, isPomodoro]);
+        prevTreesRef.current = totalTrees;
+    }, [totalTrees]);
 
     // Use a ref for percentage to prevent constant re-rendering of the canvas loop
     const percentageRef = useRef(percentage);
@@ -114,7 +116,7 @@ const ForestGrove = ({ progress, isRunning, mode }) => {
             ctx.shadowBlur = 0;
 
             // Draw falling leaves if running
-            if (isPomodoro && isRunning) {
+            if (isGrowable && isRunning) {
                 const cx = W / 2;
                 const cy = GROUND_Y + 10;
                 const growScale = 0.2 + (percentageRef.current * 1.3);
@@ -158,7 +160,7 @@ const ForestGrove = ({ progress, isRunning, mode }) => {
 
         animRef.current = requestAnimationFrame(drawFrame);
         return () => cancelAnimationFrame(animRef.current);
-    }, [isRunning, isPomodoro]); // Removed percentage from dependencies
+    }, [isRunning, isGrowable]); // Removed percentage from dependencies
 
     return (
         <div className="w-full rounded-[2.5rem] overflow-hidden border border-white/10 relative bg-[#0f172a] shadow-2xl shadow-emerald-900/20 group">
@@ -253,7 +255,7 @@ const ForestGrove = ({ progress, isRunning, mode }) => {
             />
 
             {/* Growing Tree (Front & Center) */}
-            {isPomodoro && (
+            {isGrowable && (
                 <div 
                     className="absolute z-20 pointer-events-none flex flex-col items-center justify-end"
                     style={{
@@ -311,7 +313,7 @@ const ForestGrove = ({ progress, isRunning, mode }) => {
                     {percentage > 0.8 ? '🌳' : percentage > 0.4 ? '🪴' : '🌱'}
                 </motion.div>
 
-                {isRunning && isPomodoro && (
+                {isRunning && isGrowable && (
                     <motion.div
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
@@ -321,7 +323,7 @@ const ForestGrove = ({ progress, isRunning, mode }) => {
                         <span className="text-xs font-black text-emerald-400 uppercase tracking-widest">Growing</span>
                     </motion.div>
                 )}
-                {isRunning && !isPomodoro && (
+                {isRunning && !isGrowable && (
                      <motion.div
                      initial={{ opacity: 0, x: -10 }}
                      animate={{ opacity: 1, x: 0 }}

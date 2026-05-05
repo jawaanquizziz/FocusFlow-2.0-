@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, createContext, useContext } f
 import { auth, db } from '../services/firebase';
 import { doc, setDoc, increment, arrayUnion } from 'firebase/firestore';
 
-const MODES = {
+export const MODES = {
   POMODORO: 'pomodoro',
   SHORT_BREAK: 'shortBreak',
   LONG_BREAK: 'longBreak',
@@ -34,7 +34,7 @@ const logSession = (durationSeconds, mode, taskName = null) => {
 
   // Write to Firestore if logged in
   const user = auth.currentUser;
-  if (user && db && mode === MODES.POMODORO) {
+  if (user && db && (mode === MODES.POMODORO || mode === MODES.STOPWATCH)) {
     const todayStr = session.date;
     try {
       // We first need to check the lastSessionDate to handle resets
@@ -148,12 +148,17 @@ export const TimerProvider = ({ children }) => {
   }, []);
 
   const switchMode = useCallback((newMode) => {
+    // Log stopwatch session if switching away from it
+    if (mode === MODES.STOPWATCH && timeLeft > 0) {
+      logSession(timeLeft, MODES.STOPWATCH, currentTaskRef.current);
+    }
+    
     setIsRunning(false);
     clearInterval(intervalRef.current);
     setMode(newMode);
     setTimeLeft(settings[newMode]);
     pausedTimeRef.current = 0;
-  }, [settings]);
+  }, [mode, timeLeft, settings]);
 
   const startTimer = useCallback((taskName = null) => {
     setIsRunning(true);
@@ -223,11 +228,16 @@ export const TimerProvider = ({ children }) => {
   }, [timeLeft]);
 
   const resetTimer = useCallback(() => {
+    // Log stopwatch session if resetting it
+    if (mode === MODES.STOPWATCH && timeLeft > 0) {
+      logSession(timeLeft, MODES.STOPWATCH, currentTaskRef.current);
+    }
+    
     stopTimer();
     setTimeLeft(settings[mode]);
     pausedTimeRef.current = 0;
     currentTaskRef.current = null;
-  }, [mode, settings, stopTimer]);
+  }, [mode, timeLeft, settings, stopTimer]);
 
   const updateSettings = useCallback((newSettings) => {
     setSettings(newSettings);

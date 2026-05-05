@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { db } from '../services/firebase';
-import { collection, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
+import { collection, onSnapshot, deleteDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 // Coloured avatar (same helper as Profile / Leaderboard)
 const Avatar = ({ photoURL, name, size = 32 }) => {
@@ -48,6 +48,9 @@ const Admin = () => {
     const [deleting, setDeleting] = useState(null);
     const [confirmDelete, setConfirmDelete] = useState(null);
     const [error, setError] = useState(null);
+    const [notifTitle, setNotifTitle] = useState('');
+    const [notifMessage, setNotifMessage] = useState('');
+    const [sendingNotif, setSendingNotif] = useState(false);
 
     const isAdmin = user && (
         ADMIN_EMAILS.includes(user.email) ||
@@ -101,6 +104,35 @@ const Admin = () => {
     const handleSort = (key) => {
         if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
         else { setSortKey(key); setSortDir('desc'); }
+    };
+
+    const handleSendNotif = async (e) => {
+        e.preventDefault();
+        if (!notifTitle || !notifMessage) return;
+        setSendingNotif(true);
+        try {
+            await setDoc(doc(db, 'settings', 'notifications'), {
+                title: notifTitle,
+                message: notifMessage,
+                timestamp: serverTimestamp(),
+                active: true
+            });
+            setNotifTitle('');
+            setNotifMessage('');
+            alert('Global notification sent successfully!');
+        } catch (e) {
+            console.error(e);
+            alert('Failed to send notification.');
+        } finally {
+            setSendingNotif(false);
+        }
+    };
+
+    const handleClearNotif = async () => {
+        try {
+            await setDoc(doc(db, 'settings', 'notifications'), { active: false }, { merge: true });
+            alert('Global notification cleared.');
+        } catch (e) { console.error(e); }
     };
 
     const handleDelete = async (uid) => {
@@ -175,6 +207,57 @@ const Admin = () => {
                     </button>
                 </div>
             </motion.header>
+
+            {/* Global Notification Section */}
+            <motion.div variants={item} className="glass p-8 rounded-[2.5rem] border border-white/10 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-brand/5 blur-[100px] rounded-full pointer-events-none" />
+                
+                <div className="flex items-center gap-4 mb-6">
+                    <div className="p-3 bg-brand/10 rounded-2xl text-brand"><Zap size={22} /></div>
+                    <div>
+                        <h3 className="text-xl font-black">Global <span className="text-brand">Notification</span></h3>
+                        <p className="text-text-muted text-[10px] uppercase tracking-widest font-bold">Broadcast message to all users</p>
+                    </div>
+                </div>
+
+                <form onSubmit={handleSendNotif} className="space-y-4 max-w-2xl relative z-10">
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-text-muted ml-1">Notification Title</label>
+                        <input 
+                            value={notifTitle}
+                            onChange={e => setNotifTitle(e.target.value)}
+                            placeholder="e.g. System Maintenance or New Feature!"
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold text-white focus:border-brand/50 transition-all outline-none"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-text-muted ml-1">Message Body</label>
+                        <textarea 
+                            value={notifMessage}
+                            onChange={e => setNotifMessage(e.target.value)}
+                            placeholder="Write your broadcast message here..."
+                            rows={3}
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-medium text-white focus:border-brand/50 transition-all outline-none resize-none"
+                        />
+                    </div>
+                    <div className="flex gap-3">
+                        <button 
+                            type="submit"
+                            disabled={sendingNotif}
+                            className="flex-1 bg-brand text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-brand/90 transition-all shadow-xl shadow-brand/20 active:scale-95 disabled:opacity-50"
+                        >
+                            {sendingNotif ? 'Sending...' : 'Broadcast to Everyone'}
+                        </button>
+                        <button 
+                            type="button"
+                            onClick={handleClearNotif}
+                            className="px-6 py-4 bg-white/5 border border-white/10 text-text-muted hover:text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all"
+                        >
+                            Clear Active Notif
+                        </button>
+                    </div>
+                </form>
+            </motion.div>
 
             {/* Summary Stats */}
             <motion.div variants={item} className="grid grid-cols-2 sm:grid-cols-4 gap-4">

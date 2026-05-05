@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react';
-import { Settings as SettingsIcon, Clock, Calendar, Bell, Palette, LogOut, TreePine, Shield, UserPlus, X, Share2, Link as LinkIcon, Check, BarChart2, TrendingUp, Zap, Monitor, ExternalLink } from 'lucide-react';
-import { useTimer } from '../hooks/useTimer.jsx';
+import React, { useState, useRef, useEffect } from 'react';
+import { Settings as SettingsIcon, Clock, Calendar, Bell, Palette, LogOut, TreePine, Shield, UserPlus, X, Share2, Link as LinkIcon, Check, BarChart2, TrendingUp, Zap, Monitor, ExternalLink, ArrowLeft } from 'lucide-react';
+import { useTimer, MODES } from '../hooks/useTimer.jsx';
 import TimerDisplay from '../components/TimerDisplay';
 import TodoList from '../components/TodoList';
 import AmbientSounds from '../components/AmbientSounds';
@@ -14,6 +14,9 @@ import Leaderboard from '../components/Leaderboard';
 import ForestGrove from '../components/ForestGrove';
 import SpotifyPlayer from '../components/SpotifyPlayer';
 import { useAuth } from '../hooks/useAuth';
+import Achievements from '../components/Achievements';
+import { db } from '../services/firebase';
+import { doc, getDoc, onSnapshot, collection, query, orderBy, getDocs } from 'firebase/firestore';
 
 // ── ADMIN ACCESS CONFIGURATION ───────────────────────────────────
 // This MUST match the list in src/pages/Home.jsx
@@ -445,6 +448,79 @@ const Home = () => {
   const [notificationsList, setNotificationsList] = useState([]);
   
   const { user, logout } = useAuth();
+  const [firestoreData, setFirestoreData] = useState(null);
+  const [globalNotif, setGlobalNotif] = useState(null);
+  const [myRank, setMyRank] = useState(null);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    getDoc(doc(db, 'users', user.uid)).then(snap => {
+        if (snap.exists()) setFirestoreData(snap.data());
+    }).catch(() => {});
+  }, [user?.uid]);
+
+  // Global Notification Listener
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'settings', 'notifications'), (snap) => {
+        if (snap.exists()) {
+            const data = snap.data();
+            if (data.active) setGlobalNotif(data);
+            else setGlobalNotif(null);
+        }
+    });
+    return () => unsub();
+  }, []);
+
+  // Rank Calculation
+  useEffect(() => {
+    if (!user?.uid) return;
+    const q = query(collection(db, 'users'), orderBy('treesPlanted', 'desc'));
+    getDocs(q).then(snap => {
+        const all = snap.docs.map(d => d.id);
+        const idx = all.indexOf(user.uid);
+        setMyRank(idx >= 0 ? idx + 1 : null);
+    }).catch(() => {});
+  }, [user?.uid]);
+
+  const sessions = (() => {
+    try { return JSON.parse(localStorage.getItem('focusSessions') || '[]'); }
+    catch { return []; }
+  })();
+
+  const streak = (() => {
+    let count = 0;
+    const today = new Date();
+    for (let i = 0; i < 30; i++) {
+        const d = new Date(today); d.setDate(d.getDate() - i);
+        const dateStr = d.toLocaleDateString('en-CA');
+        if (sessions.some(s => s.date === dateStr && (s.mode === 'pomodoro' || s.mode === 'stopwatch'))) count++;
+        else if (i > 0) break;
+    }
+    return count;
+  })();
+
+  const badgeStats = {
+    treesPlanted: firestoreData?.treesPlanted ?? 0,
+    sessionsCount: firestoreData?.sessionsCount ?? sessions.length,
+    totalFocusTime: firestoreData?.totalFocusTime ?? totalFocusSeconds,
+    streak,
+    earlyBird: sessions.some(s => {
+        const h = new Date(s.timestamp).getHours();
+        return h < 8;
+    }),
+    nightOwl: sessions.some(s => {
+        const h = new Date(s.timestamp).getHours();
+        return h >= 23;
+    }),
+    maxSessionsPerDay: (() => {
+        const counts = sessions.reduce((acc, s) => {
+            acc[s.date] = (acc[s.date] || 0) + 1;
+            return acc;
+        }, {});
+        const values = Object.values(counts);
+        return values.length > 0 ? Math.max(...values) : 0;
+    })()
+  };
 
 
   const MILESTONES = [
@@ -694,6 +770,36 @@ const Home = () => {
 
       {/* Main Bento Grid */}
       <div className="grid grid-cols-12 gap-6 flex-1">
+        {/* Global Notification Banner */}
+        <AnimatePresence>
+            {globalNotif && (
+                <motion.div 
+                    initial={{ opacity: 0, y: -20, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+                    exit={{ opacity: 0, y: -20, height: 0 }}
+                    className="col-span-12"
+                >
+                    <div className="glass p-5 rounded-[2rem] border border-brand/30 bg-brand/5 relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-brand/10 blur-[40px] rounded-full pointer-events-none" />
+                        <div className="flex items-center gap-4 relative z-10">
+                            <div className="p-3 bg-brand/20 rounded-2xl text-brand animate-pulse">
+                                <Zap size={24} />
+                            </div>
+                            <div className="flex-1">
+                                <h4 className="text-sm font-black uppercase tracking-widest text-brand mb-1">{globalNotif.title}</h4>
+                                <p className="text-sm text-white/90 font-medium">{globalNotif.message}</p>
+                            </div>
+                            <button 
+                                onClick={() => setGlobalNotif(null)}
+                                className="p-2 hover:bg-white/5 rounded-full text-text-muted transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                    </div>
+                </motion.div>
+            )}
+        </AnimatePresence>
         
         {/* Hero Timer Card - Takes 8 columns on large, full on small */}
         <motion.section 
@@ -738,10 +844,10 @@ const Home = () => {
             ))}
             </div>
 
-            {isGroveMode && mode !== MODES.STOPWATCH && (
+            {isGroveMode && (mode === MODES.POMODORO || mode === MODES.STOPWATCH) && (
                 <div className="w-full mb-8">
                     <ForestGrove 
-                        progress={mode === MODES.STOPWATCH ? 0 : 1 - (timeLeft / settings[mode])} 
+                        progress={mode === MODES.STOPWATCH ? Math.min(timeLeft / 1500, 1) : 1 - (timeLeft / settings[mode])} 
                         isRunning={isRunning}
                         mode={mode}
                     />
@@ -786,81 +892,94 @@ const Home = () => {
             <Leaderboard />
         </motion.div>
 
-        {/* Todo List Card - 6 columns */}
-        <motion.div variants={itemVariants} className="col-span-12 lg:col-span-7">
+        {/* Todo List Card - 4 columns */}
+        <motion.div variants={itemVariants} className="col-span-12 lg:col-span-4">
             <TodoList />
         </motion.div>
 
-        {/* Right Column — Ambient + Spotify + Planner */}
-        <div className="col-span-12 lg:col-span-5 flex flex-col gap-6">
-            <motion.div variants={itemVariants}>
-                <AmbientSounds />
-            </motion.div>
+        {/* Achievements Card - 8 columns */}
+        <motion.div variants={itemVariants} className="col-span-12 lg:col-span-8">
+            <Achievements stats={badgeStats} />
+        </motion.div>
 
-            <motion.div variants={itemVariants} className="flex-1">
-                <SpotifyPlayer />
-            </motion.div>
+        {/* Bottom Row — Ambient + Spotify + Reports */}
+        <motion.div variants={itemVariants} className="col-span-12 lg:col-span-4">
+            <AmbientSounds />
+        </motion.div>
 
-            <motion.div variants={itemVariants}>
-                <Link to="/reports" className="glass p-8 rounded-[2.5rem] flex flex-col gap-6 hover:border-brand/40 transition-all group relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-brand/10 blur-[80px] rounded-full -mr-20 -mt-20 group-hover:bg-brand/20 transition-colors" />
-                    
-                    <div className="flex items-center justify-between relative z-10">
-                        <div className="flex items-center gap-5">
-                            <div className="p-4 bg-brand/10 rounded-2xl text-brand group-hover:scale-110 transition-transform duration-500">
-                                <BarChart2 size={32} />
-                            </div>
-                            <div>
-                                <h3 className="text-2xl font-black">Performance <span className="text-brand">Report</span></h3>
-                                <p className="text-text-muted text-sm font-bold uppercase tracking-widest opacity-60">Your Productivity Hub</p>
-                            </div>
-                        </div>
-                        <div className="p-3 bg-white/5 rounded-full text-brand opacity-0 group-hover:opacity-100 transition-all duration-500 -translate-x-4 group-hover:translate-x-0">
-                            <TrendingUp size={20} />
-                        </div>
-                    </div>
+        <motion.div variants={itemVariants} className="col-span-12 lg:col-span-4 h-full">
+            <SpotifyPlayer />
+        </motion.div>
 
-                    <div className="grid grid-cols-3 gap-4 relative z-10">
-                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center justify-center text-center hover:bg-white/10 transition-colors">
-                            <Clock size={16} className="text-brand mb-2" />
-                            <p className="text-[10px] font-black uppercase text-text-muted mb-1">Total</p>
-                            <p className="text-sm font-black text-white">{formatFocusTime(totalFocusSeconds).split(' ')[0]}</p>
-                        </div>
-                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center justify-center text-center hover:bg-white/10 transition-colors">
-                            <TreePine size={16} className="text-emerald-400 mb-2" />
-                            <p className="text-[10px] font-black uppercase text-text-muted mb-1">Trees</p>
-                            <p className="text-sm font-black text-white">
-                                {JSON.parse(localStorage.getItem('focusSessions') || '[]').filter(s => s.mode === 'pomodoro').length}
-                            </p>
-                        </div>
-                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center justify-center text-center hover:bg-white/10 transition-colors">
-                            <Zap size={16} className="text-yellow-400 mb-2" />
-                            <p className="text-[10px] font-black uppercase text-text-muted mb-1">Rank</p>
-                            <p className="text-sm font-black text-white">Elite</p>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-brand text-xs font-black uppercase tracking-[0.2em] relative z-10">
-                        View Detailed Insights <span className="text-lg group-hover:translate-x-2 transition-transform">→</span>
-                    </div>
-                </Link>
-            </motion.div>
-
-            <motion.div variants={itemVariants}>
-                <Link to="/planner" className="glass p-6 rounded-[2.5rem] flex items-center justify-between hover:border-emerald-500/40 transition-all group relative">
+        <motion.div variants={itemVariants} className="col-span-12 lg:col-span-4">
+            <Link to="/reports" className="glass p-8 rounded-[2.5rem] flex flex-col gap-6 hover:border-brand/40 transition-all group relative overflow-hidden h-full">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-brand/10 blur-[80px] rounded-full -mr-20 -mt-20 group-hover:bg-brand/20 transition-colors" />
+                
+                <div className="flex items-center justify-between relative z-10">
                     <div className="flex items-center gap-5">
-                        <div className="p-3.5 bg-emerald-500/10 rounded-2xl text-emerald-400 group-hover:rotate-12 transition-transform duration-500">
-                            <Calendar size={28} />
+                        <div className="p-4 bg-brand/10 rounded-2xl text-brand group-hover:scale-110 transition-transform duration-500">
+                            <BarChart2 size={32} />
                         </div>
                         <div>
-                            <h3 className="text-xl font-bold">Planner</h3>
-                            <p className="text-text-muted text-sm font-medium">Schedule your daily rhythm</p>
+                            <h3 className="text-2xl font-black">Performance <span className="text-brand">Report</span></h3>
+                            <p className="text-text-muted text-sm font-bold uppercase tracking-widest opacity-60">Your Productivity Hub</p>
                         </div>
                     </div>
-                    <div className="text-emerald-400 opacity-0 group-hover:opacity-100 transition-all duration-500 font-black text-2xl pr-2">→</div>
-                </Link>
-            </motion.div>
-        </div>
+                    <div className="p-3 bg-white/5 rounded-full text-brand opacity-0 group-hover:opacity-100 transition-all duration-500 -translate-x-4 group-hover:translate-x-0">
+                        <TrendingUp size={20} />
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4 relative z-10">
+                    <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center justify-center text-center hover:bg-white/10 transition-colors">
+                        <Clock size={16} className="text-brand mb-2" />
+                        <p className="text-[10px] font-black uppercase text-text-muted mb-1">Total</p>
+                        <p className="text-sm font-black text-white">{formatFocusTime(totalFocusSeconds).split(' ')[0]}</p>
+                    </div>
+                    <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center justify-center text-center hover:bg-white/10 transition-colors">
+                        <TreePine size={16} className="text-emerald-400 mb-2" />
+                        <p className="text-[10px] font-black uppercase text-text-muted mb-1">Trees</p>
+                        <p className="text-sm font-black text-white">
+                            {firestoreData?.treesPlanted ?? sessions.filter(s => s.mode === 'pomodoro' || s.mode === 'stopwatch').length}
+                        </p>
+                    </div>
+                    <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center justify-center text-center hover:bg-white/10 transition-colors">
+                        <Zap size={16} className="text-yellow-400 mb-2" />
+                        <p className="text-[10px] font-black uppercase text-text-muted mb-1">Rank</p>
+                        <p className="text-sm font-black text-white">{myRank ? `#${myRank}` : 'Elite'}</p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-brand text-xs font-black uppercase tracking-[0.2em] relative z-10 mt-auto">
+                    View Detailed Insights <span className="text-lg group-hover:translate-x-2 transition-transform">→</span>
+                </div>
+            </Link>
+        </motion.div>
+
+        {/* Planner Link - Full Width Bottom */}
+        <motion.div variants={itemVariants} className="col-span-12">
+            <Link to="/planner" className="glass p-6 rounded-[2.5rem] flex items-center justify-between hover:border-emerald-500/40 transition-all group relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 to-transparent pointer-events-none" />
+                <div className="flex items-center gap-4 relative z-10">
+                    <div className="p-3 bg-emerald-500/10 rounded-2xl text-emerald-500 group-hover:rotate-12 transition-transform">
+                        <Calendar size={24} />
+                    </div>
+                    <div>
+                        <h3 className="font-black text-lg">Focus <span className="text-emerald-500">Planner</span></h3>
+                        <p className="text-[10px] text-text-muted uppercase tracking-widest font-black opacity-60">Organize your study sessions</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-3 relative z-10">
+                    <div className="text-right hidden sm:block">
+                        <p className="text-[10px] font-black uppercase text-text-muted tracking-widest">Efficiency</p>
+                        <p className="text-sm font-black text-emerald-500">High</p>
+                    </div>
+                    <div className="p-3 bg-white/5 rounded-2xl text-text-muted group-hover:text-emerald-500 transition-colors">
+                        <ArrowLeft size={20} className="rotate-180" />
+                    </div>
+                </div>
+            </Link>
+        </motion.div>
 
       </div>
 

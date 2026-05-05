@@ -289,7 +289,7 @@ const Leaderboard = () => {
             const all = snap.docs.map(d => {
                 const data = d.data();
                 const userSessions = data.sessions || [];
-                const treesToday = userSessions.filter(s => s.date === todayStr && s.mode === 'pomodoro').length;
+                const treesToday = userSessions.filter(s => s.date === todayStr && (s.mode === 'pomodoro' || s.mode === 'stopwatch')).length;
                 
                 return {
                     id: d.id,

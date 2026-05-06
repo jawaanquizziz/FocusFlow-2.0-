@@ -254,7 +254,7 @@ const ForestGrove = ({ progress, isRunning, mode }) => {
                 className="w-full h-[200px] object-cover relative z-0"
             />
 
-            {/* Growing Tree (Front & Center) */}
+            {/* Growing Tree (Front & Center) - Only during Focus sessions */}
             {isGrowable && (
                 <div 
                     className="absolute z-20 pointer-events-none flex flex-col items-center justify-end"
@@ -274,8 +274,9 @@ const ForestGrove = ({ progress, isRunning, mode }) => {
                 </div>
             )}
 
-            {/* Progress area */}
-            <div className="relative z-20 bg-[#020617] border-t border-white/5 px-8 py-4 flex items-center gap-6">
+            {/* Progress area - Only during Focus sessions */}
+            {isGrowable && (
+                <div className="relative z-20 bg-[#020617] border-t border-white/5 px-8 py-4 flex items-center gap-6">
                 {/* Progress bar */}
                 <div className="flex-1">
                     <div className="h-3 bg-white/5 rounded-full overflow-hidden relative border border-white/10">
@@ -334,6 +335,7 @@ const ForestGrove = ({ progress, isRunning, mode }) => {
                  </motion.div>
                 )}
             </div>
+            )}
 
             {/* Session Complete Screen */}
             <AnimatePresence>

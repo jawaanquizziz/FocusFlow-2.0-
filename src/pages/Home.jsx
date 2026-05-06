@@ -844,7 +844,7 @@ const Home = () => {
             ))}
             </div>
 
-            {isGroveMode && (mode === MODES.POMODORO || mode === MODES.STOPWATCH) && (
+            {isGroveMode && (
                 <div className="w-full mb-8">
                     <ForestGrove 
                         progress={mode === MODES.STOPWATCH ? Math.min(timeLeft / 1500, 1) : 1 - (timeLeft / settings[mode])} 

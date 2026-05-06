@@ -12,6 +12,7 @@ import Reports from './pages/Reports';
 
 import Background from './components/Background';
 import SplashScreen from './components/SplashScreen';
+import GlobalNotifBanner from './components/GlobalNotifBanner';
 import Auth from './pages/Auth';
 import { useAuth } from './hooks/useAuth';
 import { useTheme } from './hooks/useTheme';
@@ -58,6 +59,9 @@ function App() {
                             transition={{ duration: 0.4 }}
                             className="min-h-screen"
                         >
+                            {/* Global Notification Banner — visible on ALL pages */}
+                            <GlobalNotifBanner />
+
                             <Routes>
                                 <Route path="/" element={<Home />} />
                                 <Route path="/timetable" element={<Timetable />} />

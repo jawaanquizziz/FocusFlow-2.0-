@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Settings as SettingsIcon, Clock, Calendar, Bell, Palette, LogOut, TreePine, Shield, UserPlus, X, Share2, Link as LinkIcon, Check, BarChart2, TrendingUp, Zap, Monitor, ExternalLink, ArrowLeft } from 'lucide-react';
+import { Settings as SettingsIcon, Clock, Calendar, Bell, Palette, LogOut, TreePine, Shield, UserPlus, X, Share2, Link as LinkIcon, Check, BarChart2, TrendingUp, Zap, Monitor, ExternalLink, ArrowLeft, MessageSquare } from 'lucide-react';
 import { useTimer, MODES } from '../hooks/useTimer.jsx';
 import TimerDisplay from '../components/TimerDisplay';
 import TodoList from '../components/TodoList';
@@ -15,8 +15,10 @@ import ForestGrove from '../components/ForestGrove';
 import SpotifyPlayer from '../components/SpotifyPlayer';
 import { useAuth } from '../hooks/useAuth';
 import Achievements from '../components/Achievements';
+import FeedbackModal from '../components/FeedbackModal';
 import { db } from '../services/firebase';
-import { doc, getDoc, onSnapshot, collection, query, orderBy, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, orderBy, getDocs } from 'firebase/firestore';
+import FeaturedFeedback from '../components/FeaturedFeedback';
 
 // ── ADMIN ACCESS CONFIGURATION ───────────────────────────────────
 // This MUST match the list in src/pages/Home.jsx
@@ -251,6 +253,7 @@ const Home = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isThemeOpen, setIsThemeOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [isGroveMode, setIsGroveMode] = useState(true);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const pipWindowRef = useRef(null);
@@ -449,7 +452,6 @@ const Home = () => {
   
   const { user, logout } = useAuth();
   const [firestoreData, setFirestoreData] = useState(null);
-  const [globalNotif, setGlobalNotif] = useState(null);
   const [myRank, setMyRank] = useState(null);
 
   useEffect(() => {
@@ -458,18 +460,6 @@ const Home = () => {
         if (snap.exists()) setFirestoreData(snap.data());
     }).catch(() => {});
   }, [user?.uid]);
-
-  // Global Notification Listener
-  useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'settings', 'notifications'), (snap) => {
-        if (snap.exists()) {
-            const data = snap.data();
-            if (data.active) setGlobalNotif(data);
-            else setGlobalNotif(null);
-        }
-    });
-    return () => unsub();
-  }, []);
 
   // Rank Calculation
   useEffect(() => {
@@ -770,36 +760,6 @@ const Home = () => {
 
       {/* Main Bento Grid */}
       <div className="grid grid-cols-12 gap-6 flex-1">
-        {/* Global Notification Banner */}
-        <AnimatePresence>
-            {globalNotif && (
-                <motion.div 
-                    initial={{ opacity: 0, y: -20, height: 0 }}
-                    animate={{ opacity: 1, y: 0, height: 'auto' }}
-                    exit={{ opacity: 0, y: -20, height: 0 }}
-                    className="col-span-12"
-                >
-                    <div className="glass p-5 rounded-[2rem] border border-brand/30 bg-brand/5 relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-brand/10 blur-[40px] rounded-full pointer-events-none" />
-                        <div className="flex items-center gap-4 relative z-10">
-                            <div className="p-3 bg-brand/20 rounded-2xl text-brand animate-pulse">
-                                <Zap size={24} />
-                            </div>
-                            <div className="flex-1">
-                                <h4 className="text-sm font-black uppercase tracking-widest text-brand mb-1">{globalNotif.title}</h4>
-                                <p className="text-sm text-white/90 font-medium">{globalNotif.message}</p>
-                            </div>
-                            <button 
-                                onClick={() => setGlobalNotif(null)}
-                                className="p-2 hover:bg-white/5 rounded-full text-text-muted transition-colors"
-                            >
-                                <X size={20} />
-                            </button>
-                        </div>
-                    </div>
-                </motion.div>
-            )}
-        </AnimatePresence>
         
         {/* Hero Timer Card - Takes 8 columns on large, full on small */}
         <motion.section 
@@ -981,6 +941,9 @@ const Home = () => {
             </Link>
         </motion.div>
 
+        {/* Community Voices — Featured Feedback */}
+        <FeaturedFeedback />
+
       </div>
 
       <motion.footer 
@@ -1096,6 +1059,57 @@ const Home = () => {
             </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Feedback Modal */}
+      <AnimatePresence>
+          {isFeedbackOpen && (
+              <FeedbackModal
+                  user={user}
+                  onClose={() => setIsFeedbackOpen(false)}
+              />
+          )}
+      </AnimatePresence>
+
+      {/* Floating Feedback FAB */}
+      <AnimatePresence>
+        {!isFeedbackOpen && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 20 }}
+            transition={{ delay: 1.5, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            className="fixed bottom-8 right-8 z-[90] flex items-center gap-3 group"
+          >
+            {/* Pulsing glow ring */}
+            <motion.div
+              animate={{ scale: [1, 1.5, 1], opacity: [0.3, 0, 0.3] }}
+              transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}
+              className="absolute inset-0 rounded-full bg-brand blur-md pointer-events-none"
+            />
+            {/* Label pill - visible on hover */}
+            <motion.span
+              initial={{ opacity: 0, x: 10, scale: 0.95 }}
+              whileHover={{ opacity: 1, x: 0, scale: 1 }}
+              className="hidden group-hover:flex items-center gap-2 bg-[#0f172a] border border-white/10 text-white text-xs font-black uppercase tracking-widest px-4 py-3 rounded-2xl shadow-xl whitespace-nowrap backdrop-blur-xl pointer-events-none"
+              style={{ transition: 'all 0.2s ease' }}
+            >
+              <MessageSquare size={13} className="text-brand" />
+              Share Feedback
+            </motion.span>
+            {/* Main FAB button */}
+            <motion.button
+              onClick={() => setIsFeedbackOpen(true)}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.92 }}
+              className="relative w-14 h-14 rounded-full bg-gradient-to-br from-brand to-purple-600 text-white shadow-[0_8px_32px_rgba(88,101,242,0.5)] flex items-center justify-center border border-white/20 hover:shadow-[0_12px_40px_rgba(88,101,242,0.7)] transition-shadow"
+              title="Share Feedback"
+            >
+              <MessageSquare size={22} />
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </motion.div>
   );
 };

@@ -3,11 +3,12 @@ import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ArrowLeft, Users, Search, Shield, Trash2, Crown, TreePine,
-    Clock, Zap, ChevronUp, ChevronDown, RefreshCw, AlertTriangle
+    Clock, Zap, ChevronUp, ChevronDown, RefreshCw, AlertTriangle,
+    MessageSquare, Star, Mail, Pin, PinOff
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { db } from '../services/firebase';
-import { collection, onSnapshot, deleteDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, deleteDoc, doc, setDoc, serverTimestamp, query, orderBy, updateDoc } from 'firebase/firestore';
 
 // Coloured avatar (same helper as Profile / Leaderboard)
 const Avatar = ({ photoURL, name, size = 32 }) => {
@@ -51,6 +52,8 @@ const Admin = () => {
     const [notifTitle, setNotifTitle] = useState('');
     const [notifMessage, setNotifMessage] = useState('');
     const [sendingNotif, setSendingNotif] = useState(false);
+    const [feedbackList, setFeedbackList] = useState([]);
+    const [feedbackLoading, setFeedbackLoading] = useState(true);
 
     const isAdmin = user && (
         ADMIN_EMAILS.includes(user.email) ||
@@ -99,6 +102,17 @@ const Admin = () => {
         });
 
         return () => unsubscribe();
+    }, [isAdmin]);
+
+    // Feedback Listener
+    useEffect(() => {
+        if (!isAdmin) return;
+        const q = query(collection(db, 'feedback'), orderBy('timestamp', 'desc'));
+        const unsub = onSnapshot(q, (snap) => {
+            setFeedbackList(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            setFeedbackLoading(false);
+        }, () => setFeedbackLoading(false));
+        return () => unsub();
     }, [isAdmin]);
 
     const handleSort = (key) => {
@@ -382,6 +396,119 @@ const Admin = () => {
                                 </motion.div>
                             ))}
                         </AnimatePresence>
+                    </div>
+                )}
+            </motion.div>
+
+            {/* Feedback Inbox */}
+            <motion.div variants={item} className="glass p-8 rounded-[2.5rem] border border-white/10 relative overflow-hidden">
+                <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/5 blur-[100px] rounded-full pointer-events-none" />
+
+                <div className="flex items-center gap-4 mb-6">
+                    <div className="p-3 bg-purple-500/10 rounded-2xl text-purple-400">
+                        <MessageSquare size={22} />
+                    </div>
+                    <div className="flex-1">
+                        <h3 className="text-xl font-black">User <span className="text-purple-400">Feedback</span></h3>
+                        <p className="text-text-muted text-[10px] uppercase tracking-widest font-bold">Suggestions &amp; reports from users</p>
+                    </div>
+                    <span className="bg-purple-500/10 border border-purple-500/20 text-purple-400 px-4 py-2 rounded-2xl text-xs font-black">
+                        {feedbackList.length} total
+                    </span>
+                </div>
+
+                {feedbackLoading ? (
+                    <div className="flex items-center justify-center py-12 gap-3">
+                        <div className="w-6 h-6 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+                        <p className="text-text-muted text-xs font-bold uppercase tracking-widest">Loading feedback...</p>
+                    </div>
+                ) : feedbackList.length === 0 ? (
+                    <div className="text-center py-12">
+                        <Mail size={32} className="text-text-muted/30 mx-auto mb-3" />
+                        <p className="text-text-muted text-xs font-bold uppercase tracking-widest">No feedback yet</p>
+                    </div>
+                ) : (
+                    <div className="space-y-4 max-h-[600px] overflow-y-auto pr-1">
+                        {feedbackList.map(fb => (
+                            <motion.div
+                                key={fb.id}
+                                layout
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0 }}
+                                className={`border rounded-3xl p-5 transition-all group ${
+                                    fb.featured
+                                        ? 'bg-yellow-500/5 border-yellow-500/25 shadow-lg shadow-yellow-500/5'
+                                        : 'bg-white/3 border-white/8 hover:bg-white/5'
+                                }`}
+                            >
+                                <div className="flex items-start gap-4">
+                                    {/* Avatar */}
+                                    <Avatar photoURL={fb.photoURL} name={fb.name} size={36} />
+
+                                    <div className="flex-1 min-w-0">
+                                        {/* Top row */}
+                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                            <span className="text-sm font-black text-white truncate">{fb.name || 'Anonymous'}</span>
+                                            {fb.email && <span className="text-[10px] text-text-muted font-medium">{fb.email}</span>}
+                                            <span className={`ml-auto text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full ${
+                                                fb.category === 'feature' ? 'bg-brand/15 text-brand' :
+                                                fb.category === 'bug' ? 'bg-red-500/15 text-red-400' :
+                                                fb.category === 'design' ? 'bg-pink-500/15 text-pink-400' :
+                                                'bg-white/8 text-text-muted'
+                                            }`}>
+                                                {fb.category === 'feature' ? '✨ Feature' :
+                                                 fb.category === 'bug' ? '🐛 Bug' :
+                                                 fb.category === 'design' ? '🎨 Design' : '💬 General'}
+                                            </span>
+                                        </div>
+
+                                        {/* Stars */}
+                                        {fb.rating > 0 && (
+                                            <div className="flex gap-0.5 mb-2">
+                                                {[1,2,3,4,5].map(s => (
+                                                    <Star key={s} size={12}
+                                                        className={s <= fb.rating ? 'text-yellow-400 fill-yellow-400' : 'text-slate-700'}
+                                                    />
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Message */}
+                                        <p className="text-sm text-white/80 font-medium leading-relaxed">{fb.message}</p>
+
+                                        {/* Timestamp */}
+                                        <p className="text-[10px] text-text-muted/50 font-bold mt-2 uppercase tracking-widest">
+                                            {fb.timestamp?.toDate?.()?.toLocaleString() || 'Just now'}
+                                        </p>
+                                    </div>
+
+                                    {/* Actions: Feature + Delete */}
+                                    <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                        {/* Feature toggle */}
+                                        <button
+                                            onClick={() => updateDoc(doc(db, 'feedback', fb.id), { featured: !fb.featured })}
+                                            className={`p-2 rounded-xl transition-all ${
+                                                fb.featured
+                                                    ? 'text-yellow-400 bg-yellow-500/15 hover:bg-yellow-500/25'
+                                                    : 'text-text-muted hover:text-yellow-400 hover:bg-yellow-500/10'
+                                            }`}
+                                            title={fb.featured ? 'Remove from homepage' : 'Feature on homepage'}
+                                        >
+                                            {fb.featured ? <PinOff size={14} /> : <Pin size={14} />}
+                                        </button>
+                                        {/* Delete */}
+                                        <button
+                                            onClick={() => deleteDoc(doc(db, 'feedback', fb.id))}
+                                            className="p-2 rounded-xl text-text-muted hover:text-red-400 hover:bg-red-500/10 transition-all"
+                                            title="Delete"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        ))}
                     </div>
                 )}
             </motion.div>

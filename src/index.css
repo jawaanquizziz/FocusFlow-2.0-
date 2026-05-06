@@ -76,6 +76,94 @@
     --mesh-3: hsla(45, 90%, 55%, 0.08);
   }
 
+  [data-theme='aurora'] {
+    --brand-color: #2DD4BF;
+    --brand-hover-color: #14B8A6;
+    --brand-rgb: 45, 212, 191;
+    --bg-color: #010D0C;
+    --bg-secondary: #031A18;
+    --mesh-1: hsla(174, 80%, 52%, 0.18);
+    --mesh-2: hsla(220, 70%, 55%, 0.14);
+    --mesh-3: hsla(145, 85%, 45%, 0.08);
+  }
+
+  [data-theme='rosegold'] {
+    --brand-color: #F9A8D4;
+    --brand-hover-color: #F472B6;
+    --brand-rgb: 249, 168, 212;
+    --bg-color: #0D0509;
+    --bg-secondary: #1A0812;
+    --mesh-1: hsla(330, 85%, 70%, 0.18);
+    --mesh-2: hsla(15, 80%, 60%, 0.12);
+    --mesh-3: hsla(300, 70%, 55%, 0.07);
+  }
+
+  [data-theme='crimson'] {
+    --brand-color: #F87171;
+    --brand-hover-color: #EF4444;
+    --brand-rgb: 248, 113, 113;
+    --bg-color: #0A0101;
+    --bg-secondary: #160404;
+    --mesh-1: hsla(0, 80%, 55%, 0.2);
+    --mesh-2: hsla(20, 75%, 45%, 0.12);
+    --mesh-3: hsla(340, 80%, 50%, 0.08);
+  }
+
+  [data-theme='galaxy'] {
+    --brand-color: #A78BFA;
+    --brand-hover-color: #8B5CF6;
+    --brand-rgb: 167, 139, 250;
+    --bg-color: #03010D;
+    --bg-secondary: #0A0420;
+    --mesh-1: hsla(258, 85%, 65%, 0.2);
+    --mesh-2: hsla(290, 75%, 55%, 0.14);
+    --mesh-3: hsla(220, 80%, 60%, 0.07);
+  }
+
+  [data-theme='amber'] {
+    --brand-color: #FCD34D;
+    --brand-hover-color: #FBBF24;
+    --brand-rgb: 252, 211, 77;
+    --bg-color: #0C0800;
+    --bg-secondary: #1A1000;
+    --mesh-1: hsla(42, 95%, 60%, 0.18);
+    --mesh-2: hsla(28, 90%, 50%, 0.12);
+    --mesh-3: hsla(55, 85%, 55%, 0.07);
+  }
+
+  [data-theme='arctic'] {
+    --brand-color: #BAE6FD;
+    --brand-hover-color: #7DD3FC;
+    --brand-rgb: 186, 230, 253;
+    --bg-color: #010A12;
+    --bg-secondary: #041525;
+    --mesh-1: hsla(200, 95%, 75%, 0.14);
+    --mesh-2: hsla(215, 80%, 60%, 0.1);
+    --mesh-3: hsla(185, 90%, 65%, 0.06);
+  }
+
+  [data-theme='neonlime'] {
+    --brand-color: #A3E635;
+    --brand-hover-color: #84CC16;
+    --brand-rgb: 163, 230, 53;
+    --bg-color: #020801;
+    --bg-secondary: #061201;
+    --mesh-1: hsla(84, 85%, 55%, 0.18);
+    --mesh-2: hsla(120, 70%, 45%, 0.12);
+    --mesh-3: hsla(65, 90%, 50%, 0.08);
+  }
+
+  [data-theme='bloodmoon'] {
+    --brand-color: #FF6B35;
+    --brand-hover-color: #EA580C;
+    --brand-rgb: 255, 107, 53;
+    --bg-color: #08020A;
+    --bg-secondary: #150410;
+    --mesh-1: hsla(18, 95%, 55%, 0.2);
+    --mesh-2: hsla(330, 80%, 45%, 0.14);
+    --mesh-3: hsla(5, 85%, 50%, 0.08);
+  }
+
   html {
     scroll-behavior: smooth;
   }

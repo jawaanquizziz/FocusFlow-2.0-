@@ -17,7 +17,7 @@ import { useAuth } from '../hooks/useAuth';
 import Achievements from '../components/Achievements';
 import FeedbackModal from '../components/FeedbackModal';
 import { db } from '../services/firebase';
-import { doc, getDoc, collection, query, orderBy, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, orderBy, getDocs, onSnapshot } from 'firebase/firestore';
 import FeaturedFeedback from '../components/FeaturedFeedback';
 
 // ── ADMIN ACCESS CONFIGURATION ───────────────────────────────────
@@ -256,7 +256,16 @@ const Home = () => {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [isGroveMode, setIsGroveMode] = useState(true);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [lastViewedTime, setLastViewedTime] = useState(() => Number(localStorage.getItem('last_notif_view_time') || 0));
   const pipWindowRef = useRef(null);
+
+  useEffect(() => {
+    if (isNotificationsOpen) {
+      const now = Date.now();
+      setLastViewedTime(now);
+      localStorage.setItem('last_notif_view_time', String(now));
+    }
+  }, [isNotificationsOpen]);
 
   const getActiveTodos = () => {
     try {
@@ -449,6 +458,31 @@ const Home = () => {
   const [taskInput, setTaskInput] = useState('');
   const [rewardMsg, setRewardMsg] = useState(null);
   const [notificationsList, setNotificationsList] = useState([]);
+  const [adminNotif, setAdminNotif] = useState(null);
+
+  // Subscribe to admin global notification
+  const DISMISSED_KEY = 'focusflow_dismissed_notif_ts';
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'settings', 'notifications'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.active) {
+          const notifTs = data.timestamp?.seconds ?? 0;
+          const dismissedTs = Number(localStorage.getItem(DISMISSED_KEY) || 0);
+          if (notifTs > dismissedTs) {
+            setAdminNotif(data);
+          } else {
+            setAdminNotif(null);
+          }
+        } else {
+          setAdminNotif(null);
+        }
+      } else {
+        setAdminNotif(null);
+      }
+    });
+    return () => unsub();
+  }, []);
   
   const { user, logout } = useAuth();
   const [firestoreData, setFirestoreData] = useState(null);
@@ -644,13 +678,14 @@ const Home = () => {
           </button>
 
           <div className="relative">
+              {/* Bell button with numeric badge */}
               <button 
                 onClick={() => {
                     requestPermission();
                     setIsNotificationsOpen(!isNotificationsOpen);
                 }}
                 className={`p-3 rounded-2xl transition-all relative ${
-                    permission === 'granted' || notificationsList.length > 0
+                    (permission === 'granted' || notificationsList.length > 0 || adminNotif)
                     ? 'text-brand bg-brand/10' 
                     : 'text-text-muted bg-white/5 hover:text-white'
                 }`}
@@ -663,12 +698,23 @@ const Home = () => {
                     />
                 )}
                 <Bell size={20} className="relative z-10" />
-                {(permission === 'default' || notificationsList.length > 0) && (
-                    <span className="absolute -top-1 -right-1 flex h-3 w-3 relative z-20">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-brand"></span>
-                    </span>
-                )}
+                {/* Numeric badge — counts unread admin notif + unread app notifs */}
+                {(() => {
+                    const unreadAppNotifs = notificationsList.filter(n => n.id > lastViewedTime).length;
+                    const hasUnreadAdmin = adminNotif && ((adminNotif.timestamp?.seconds * 1000 || 0) > lastViewedTime);
+                    const totalUnread = unreadAppNotifs + (hasUnreadAdmin ? 1 : 0);
+                    
+                    if (totalUnread > 0) {
+                        return (
+                            <span
+                                className="absolute -top-1.5 -right-1.5 z-20 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-brand text-white text-[10px] font-black shadow-lg shadow-brand/40 ring-2 ring-[#0f172a]"
+                            >
+                                {totalUnread}
+                            </span>
+                        );
+                    }
+                    return null;
+                })()}
               </button>
 
               {/* Notifications Dropdown */}
@@ -692,8 +738,40 @@ const Home = () => {
                                   Clear All
                               </button>
                           </div>
-                          <div className="max-h-[300px] overflow-y-auto custom-scrollbar p-2">
-                              {notificationsList.length === 0 ? (
+                          <div className="max-h-[360px] overflow-y-auto custom-scrollbar p-2">
+                              {/* Admin / Global Notification — pinned at top */}
+                              {adminNotif && (
+                                  <div className="mb-1 p-3 rounded-2xl bg-brand/10 border border-brand/20 relative overflow-hidden">
+                                      <div className="absolute top-0 right-0 w-16 h-16 bg-brand/10 blur-[30px] rounded-full pointer-events-none" />
+                                      <div className="flex items-start gap-3 relative z-10">
+                                          <div className="p-1.5 bg-brand/20 rounded-xl text-brand shrink-0 mt-0.5">
+                                              <Zap size={14} />
+                                          </div>
+                                          <div className="flex-1 min-w-0">
+                                              <div className="flex justify-between items-center mb-0.5">
+                                                  <p className="text-xs font-black text-brand truncate">{adminNotif.title}</p>
+                                                  <span className="text-[9px] font-bold text-text-muted ml-2 shrink-0">Admin</span>
+                                              </div>
+                                              <p className="text-[10px] text-white/80 leading-relaxed">{adminNotif.message}</p>
+                                          </div>
+                                          <button
+                                              onClick={() => {
+                                                  if (adminNotif?.timestamp?.seconds) {
+                                                      localStorage.setItem(DISMISSED_KEY, String(adminNotif.timestamp.seconds));
+                                                  }
+                                                  setAdminNotif(null);
+                                              }}
+                                              className="p-1 hover:bg-white/10 rounded-full text-text-muted hover:text-white transition-colors shrink-0"
+                                              title="Dismiss"
+                                          >
+                                              <X size={12} />
+                                          </button>
+                                      </div>
+                                  </div>
+                              )}
+
+                              {/* App Notifications */}
+                              {notificationsList.length === 0 && !adminNotif ? (
                                   <div className="p-6 text-center text-text-muted">
                                       <Bell size={24} className="mx-auto mb-2 opacity-50" />
                                       <p className="text-xs font-bold uppercase tracking-widest">All caught up!</p>

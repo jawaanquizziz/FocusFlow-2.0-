@@ -38,6 +38,7 @@ const SoundButton = ({ sound, isActive, onToggle }) => {
 
 const AmbientSounds = () => {
   const [activeSoundId, setActiveSoundId] = useState(null);
+  const [volume, setVolume] = useState(0.5);
   const audioRef = useRef(null);
 
   const toggleSound = (sound) => {
@@ -48,8 +49,17 @@ const AmbientSounds = () => {
       if (audioRef.current) audioRef.current.pause();
       audioRef.current = new Audio(sound.file);
       audioRef.current.loop = true;
+      audioRef.current.volume = volume;
       audioRef.current.play();
       setActiveSoundId(sound.id);
+    }
+  };
+
+  const handleVolumeChange = (e) => {
+    const newVolume = parseFloat(e.target.value);
+    setVolume(newVolume);
+    if (audioRef.current) {
+      audioRef.current.volume = newVolume;
     }
   };
 
@@ -75,34 +85,49 @@ const AmbientSounds = () => {
         ))}
       </div>
       
-      <div className="mt-auto pt-6 flex items-center gap-3 relative z-10 min-h-[40px]">
-        <AnimatePresence mode="wait">
-            {activeSoundId ? (
-                <motion.div 
-                    key="playing"
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 10 }}
-                    className="flex items-center gap-3 text-brand text-xs font-bold bg-brand/10 px-4 py-2 rounded-xl border border-brand/20 w-fit"
-                >
-                    <div className="flex gap-1 items-end h-3">
-                        <motion.div animate={{ height: [4, 12, 4] }} transition={{ repeat: Infinity, duration: 0.8 }} className="w-1 bg-brand rounded-full" />
-                        <motion.div animate={{ height: [8, 4, 8] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-1 bg-brand rounded-full" />
-                        <motion.div animate={{ height: [4, 10, 4] }} transition={{ repeat: Infinity, duration: 0.6, delay: 0.1 }} className="w-1 bg-brand rounded-full" />
-                    </div>
-                    <span className="uppercase tracking-widest">Playing {SOUNDS.find(s => s.id === activeSoundId)?.name}</span>
-                </motion.div>
-            ) : (
-                <motion.span 
-                    key="silent"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 0.4 }}
-                    className="text-[10px] text-text-muted uppercase tracking-[0.2em]"
-                >
-                    System Silent
-                </motion.span>
-            )}
-        </AnimatePresence>
+      <div className="mt-auto pt-6 flex items-center justify-between relative z-10 min-h-[40px] w-full">
+        <div>
+          <AnimatePresence mode="wait">
+              {activeSoundId ? (
+                  <motion.div 
+                      key="playing"
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -10 }}
+                      className="flex items-center gap-3 text-brand text-xs font-bold bg-brand/10 px-4 py-2 rounded-xl border border-brand/20 w-fit"
+                  >
+                      <div className="flex gap-1 items-end h-3">
+                          <motion.div animate={{ height: [4, 12, 4] }} transition={{ repeat: Infinity, duration: 0.8 }} className="w-1 bg-brand rounded-full" />
+                          <motion.div animate={{ height: [8, 4, 8] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-1 bg-brand rounded-full" />
+                          <motion.div animate={{ height: [4, 10, 4] }} transition={{ repeat: Infinity, duration: 0.6, delay: 0.1 }} className="w-1 bg-brand rounded-full" />
+                      </div>
+                      <span className="uppercase tracking-widest">Playing {SOUNDS.find(s => s.id === activeSoundId)?.name}</span>
+                  </motion.div>
+              ) : (
+                  <motion.span 
+                      key="silent"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 0.4 }}
+                      className="text-[10px] text-text-muted uppercase tracking-[0.2em]"
+                  >
+                      System Silent
+                  </motion.span>
+              )}
+          </AnimatePresence>
+        </div>
+
+        <div className="flex items-center gap-2 opacity-50 hover:opacity-100 transition-opacity">
+          <Volume2 size={16} className="text-text-muted" />
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={volume}
+            onChange={handleVolumeChange}
+            className="w-20 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-brand"
+          />
+        </div>
       </div>
     </div>
   );

@@ -37,6 +37,50 @@ const WALLPAPERS = [
 const ThemeGallery = ({ isOpen, onClose }) => {
   const { theme, setTheme, wallpaper, setWallpaper } = useTheme();
   const [activeTab, setActiveTab] = useState('themes');
+  const fileInputRef = React.useRef(null);
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1920;
+        const MAX_HEIGHT = 1080;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        try {
+          setWallpaper(dataUrl);
+        } catch (err) {
+          alert('Failed to save image. It might be too large.');
+        }
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
 
   return (
     <AnimatePresence>
@@ -172,7 +216,39 @@ const ThemeGallery = ({ isOpen, onClose }) => {
 
               {/* ── WALLPAPERS TAB ── */}
               {activeTab === 'wallpapers' && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div className="space-y-6">
+                  {/* Custom Wallpaper Input */}
+                  <div className="bg-white/5 p-4 rounded-2xl border border-white/10 flex justify-between items-center hover:border-white/20 transition-colors">
+                    <div className="flex gap-3 items-center">
+                      <ImageIcon size={20} className="text-text-muted shrink-0" />
+                      <div>
+                        <p className="text-sm text-white font-bold">Custom Wallpaper</p>
+                        <p className="text-[10px] text-text-muted">Upload an image from your device</p>
+                      </div>
+                    </div>
+                    
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      ref={fileInputRef}
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                    
+                    <div className="flex items-center gap-3">
+                      {wallpaper && wallpaper.startsWith('data:image') && (
+                        <span className="text-[10px] font-black uppercase tracking-widest text-brand bg-brand/10 px-3 py-1.5 rounded-full shrink-0">Active</span>
+                      )}
+                      <button 
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl transition-all"
+                      >
+                        Choose File
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   {WALLPAPERS.map((w) => (
                     <motion.button
                       key={w.id}
@@ -208,6 +284,7 @@ const ThemeGallery = ({ isOpen, onClose }) => {
                       </div>
                     </motion.button>
                   ))}
+                  </div>
                 </div>
               )}
             </div>

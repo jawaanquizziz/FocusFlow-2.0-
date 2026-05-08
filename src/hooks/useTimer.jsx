@@ -132,6 +132,7 @@ export const TimerProvider = ({ children }) => {
     localStorage.setItem('timerSettings', JSON.stringify(settings));
   }, [settings]);
 
+
   useEffect(() => {
     localStorage.setItem('focusSeconds', totalFocusSeconds.toString());
   }, [totalFocusSeconds]);
@@ -215,7 +216,7 @@ export const TimerProvider = ({ children }) => {
             } catch (e) {}
         }
 
-        const alarm = new Audio('/audio/end_time_pomodoro.mp3');
+        const alarm = new Audio('/audio/spider_man_32.mp3');
         alarm.play().catch(() => {});
         
         if (mode === MODES.POMODORO) {

@@ -671,10 +671,11 @@ const Home = () => {
           
           <button 
             onClick={() => setIsThemeOpen(true)}
-            className="p-3 rounded-2xl transition-all text-text-muted bg-white/5 hover:text-white hover:bg-brand/20"
+            className="p-2 sm:p-3 rounded-2xl transition-all text-text-muted bg-white/5 hover:text-white hover:bg-brand/20 flex flex-col items-center justify-center gap-1 min-w-[64px]"
             title="Themes & Wallpapers"
           >
             <Palette size={20} />
+            <span className="text-[9px] font-bold uppercase tracking-wider">Theme</span>
           </button>
 
           <div className="relative">
@@ -684,7 +685,7 @@ const Home = () => {
                     requestPermission();
                     setIsNotificationsOpen(!isNotificationsOpen);
                 }}
-                className={`p-3 rounded-2xl transition-all relative ${
+                className={`p-2 sm:p-3 rounded-2xl transition-all relative flex flex-col items-center justify-center gap-1 min-w-[64px] ${
                     (permission === 'granted' || notificationsList.length > 0 || adminNotif)
                     ? 'text-brand bg-brand/10' 
                     : 'text-text-muted bg-white/5 hover:text-white'
@@ -698,6 +699,7 @@ const Home = () => {
                     />
                 )}
                 <Bell size={20} className="relative z-10" />
+                <span className="text-[9px] font-bold uppercase tracking-wider relative z-10">Alerts</span>
                 {/* Numeric badge — counts unread admin notif + unread app notifs */}
                 {(() => {
                     const unreadAppNotifs = notificationsList.filter(n => n.id > lastViewedTime).length;
@@ -798,16 +800,17 @@ const Home = () => {
           {/* Invite button */}
           <button 
             onClick={() => setIsInviteOpen(true)}
-            className="p-3 rounded-2xl transition-all text-brand bg-brand/10 hover:bg-brand/20 hover:scale-105"
+            className="p-2 sm:p-3 rounded-2xl transition-all text-brand bg-brand/10 hover:bg-brand/20 hover:scale-105 flex flex-col items-center justify-center gap-1 min-w-[64px]"
             title="Invite Friends"
           >
             <UserPlus size={20} />
+            <span className="text-[9px] font-bold uppercase tracking-wider">Invite</span>
           </button>
 
           {/* Profile button */}
           <Link
             to="/profile"
-            className="relative rounded-2xl overflow-hidden transition-all hover:ring-2 hover:ring-brand/40 shrink-0"
+            className="relative rounded-2xl overflow-hidden transition-all hover:ring-2 hover:ring-brand/40 shrink-0 flex flex-col items-center justify-center gap-1 min-w-[64px]"
             title="My Profile"
           >
             {user?.photoURL ? (
@@ -815,23 +818,25 @@ const Home = () => {
                 src={user.photoURL}
                 alt="Profile"
                 referrerPolicy="no-referrer"
-                className="w-10 h-10 rounded-2xl object-cover"
+                className="w-6 h-6 sm:w-8 sm:h-8 rounded-full object-cover"
               />
             ) : (
               <div
-                className="w-10 h-10 rounded-2xl bg-brand flex items-center justify-center text-white font-black text-sm"
+                className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-brand flex items-center justify-center text-white font-black text-xs"
               >
                 {(user?.displayName || user?.email || 'U')[0].toUpperCase()}
               </div>
             )}
+            <span className="text-[9px] font-bold uppercase tracking-wider text-text-muted">Profile</span>
           </Link>
 
           <button 
             onClick={logout}
-            className="p-3 rounded-2xl transition-all text-text-muted bg-white/5 hover:text-red-500 hover:bg-red-500/10"
+            className="p-2 sm:p-3 rounded-2xl transition-all text-text-muted bg-white/5 hover:text-red-500 hover:bg-red-500/10 flex flex-col items-center justify-center gap-1 min-w-[64px]"
             title="Sign Out"
           >
             <LogOut size={20} />
+            <span className="text-[9px] font-bold uppercase tracking-wider">Log Out</span>
           </button>
         </div>
       </motion.header>
@@ -847,10 +852,11 @@ const Home = () => {
             <div className="absolute top-6 sm:top-8 left-0 w-full px-6 sm:px-8 flex items-center justify-between z-10">
                 <button 
                     onClick={handlePip}
-                    className="p-3 rounded-2xl bg-white/5 text-text-muted hover:text-brand hover:bg-brand/10 transition-all shadow-lg shrink-0"
+                    className="p-2 sm:p-3 rounded-2xl bg-white/5 text-text-muted hover:text-brand hover:bg-brand/10 transition-all shadow-lg shrink-0 flex flex-col items-center justify-center gap-1 min-w-[64px]"
                     title="Pop-out Floating Timer"
                 >
-                    <ExternalLink size={24} />
+                    <ExternalLink size={20} />
+                    <span className="text-[9px] font-bold uppercase tracking-wider hidden sm:block">Pop-Out</span>
                 </button>
 
                 <div className="flex flex-wrap justify-center gap-2 sm:gap-3 flex-1 px-2 sm:px-4">
@@ -876,9 +882,10 @@ const Home = () => {
 
                 <button 
                     onClick={() => setIsSettingsOpen(true)}
-                    className="p-3 rounded-2xl bg-white/5 text-text-muted hover:text-white transition-all hover:bg-white/10 shadow-lg shrink-0"
+                    className="p-2 sm:p-3 rounded-2xl bg-white/5 text-text-muted hover:text-white transition-all hover:bg-white/10 shadow-lg shrink-0 flex flex-col items-center justify-center gap-1 min-w-[64px]"
                 >
-                    <SettingsIcon size={24} />
+                    <SettingsIcon size={20} />
+                    <span className="text-[9px] font-bold uppercase tracking-wider hidden sm:block">Settings</span>
                 </button>
             </div>
 

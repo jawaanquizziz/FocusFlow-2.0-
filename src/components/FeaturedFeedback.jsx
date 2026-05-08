@@ -44,6 +44,7 @@ const FeaturedFeedback = () => {
     const [activeIdx, setActiveIdx] = useState(0);
     const [direction, setDirection] = useState(1);
     const timerRef = useRef(null);
+    const scrollContainerRef = useRef(null);
 
     useEffect(() => {
         const q = query(
@@ -67,6 +68,17 @@ const FeaturedFeedback = () => {
         }, 5000);
         return () => clearInterval(timerRef.current);
     }, [items.length]);
+
+    // Auto-scroll the mini preview strip
+    useEffect(() => {
+        if (!scrollContainerRef.current) return;
+        const container = scrollContainerRef.current;
+        const activeEl = container.children[activeIdx];
+        if (activeEl) {
+            const scrollLeft = activeEl.offsetLeft - (container.clientWidth / 2) + (activeEl.clientWidth / 2);
+            container.scrollTo({ left: Math.max(0, scrollLeft), behavior: 'smooth' });
+        }
+    }, [activeIdx]);
 
     const goTo = (idx) => {
         setDirection(idx > activeIdx ? 1 : -1);
@@ -218,7 +230,10 @@ const FeaturedFeedback = () => {
 
                 {/* Mini preview strip (if more than 2) */}
                 {items.length > 2 && (
-                    <div className="mt-6 flex gap-3 overflow-x-auto pb-1 hide-scrollbar">
+                    <div 
+                        ref={scrollContainerRef}
+                        className="mt-6 flex gap-3 overflow-x-auto pb-1 hide-scrollbar"
+                    >
                         {items.map((item, i) => (
                             <button
                                 key={item.id}

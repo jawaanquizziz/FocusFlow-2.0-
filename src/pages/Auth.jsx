@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Lock, User, ArrowRight, Sparkles, BookOpen, Timer, Trophy, X, FileText, Shield } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-
+import { db } from '../services/firebase';
+import { collection, getCountFromServer } from 'firebase/firestore';
 /* ─── Google Logo ───────────────────────────────────────────────── */
 const GoogleLogo = () => (
     <svg width="20" height="20" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
@@ -199,8 +200,23 @@ const Auth = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
     const [legalModal, setLegalModal] = useState(null); // 'terms' | 'privacy' | null
+    const [userCount, setUserCount] = useState(50); // Default to at least 50
 
     const { login, register, signInWithGoogle, signInAsGuest } = useAuth();
+
+    useEffect(() => {
+        const fetchUserCount = async () => {
+            try {
+                const snap = await getCountFromServer(collection(db, 'users'));
+                const count = snap.data().count;
+                setUserCount(Math.max(50, count));
+            } catch (err) {
+                console.error('Failed to fetch user count:', err);
+                setUserCount(50); // Fallback
+            }
+        };
+        fetchUserCount();
+    }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -305,7 +321,7 @@ const Auth = () => {
                             ))}
                         </div>
                         <p className="text-slate-400 text-sm">
-                            <span className="text-white font-bold">500+ students</span> already building their forest
+                            <span className="text-white font-bold">{userCount}+ users</span> already building their forest
                         </p>
                     </div>
                 </motion.div>

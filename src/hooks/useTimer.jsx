@@ -16,41 +16,24 @@ const DEFAULT_SETTINGS = {
   stopwatch: 0
 };
 
-// Log a completed focus session to localStorage and Firestore
 const logSession = (durationSeconds, mode, taskName = null) => {
   const session = {
     timestamp: new Date().toISOString(),
-    date: new Date().toLocaleDateString('en-CA'), // YYYY-MM-DD
+    date: new Date().toLocaleDateString('en-CA'),
     duration: durationSeconds,
     mode,
     task: taskName
   };
 
-  // Save to localStorage for local progress charts
   const existing = JSON.parse(localStorage.getItem('focusSessions') || '[]');
   existing.push(session);
-  if (existing.length > 100) existing.shift(); // keep last 100
+  if (existing.length > 100) existing.shift();
   localStorage.setItem('focusSessions', JSON.stringify(existing));
 
-  // Write to Firestore if logged in
   const user = auth.currentUser;
   if (user && db && (mode === MODES.POMODORO || mode === MODES.STOPWATCH)) {
-    const todayStr = session.date;
     try {
-      // We first need to check the lastSessionDate to handle resets
-      // However, to avoid a read-before-write, we can use a server-side approach or just logic here.
-      // Since we want to keep it simple and agentic, we'll use a local check if possible, 
-      // but better to just use Firestore's conditional logic if we had it.
-      // We'll update the user doc with the current date and increment/reset trees.
-      
       const userRef = doc(db, 'users', user.uid);
-      // We use a small trick: if we store daily stats in a subcollection or dedicated field, 
-      // but for simplicity in the leaderboard, we'll just add a 'dailyTrees' and 'lastActiveDate'.
-      
-      // Since we can't easily do "reset if date changed" in a single setDoc increment without a read,
-      // we'll just store the session and let the Leaderboard component filter by today's date from the sessions array.
-      // Actually, the sessions array is already being updated!
-      
       setDoc(userRef, {
         totalFocusTime: increment(durationSeconds),
         treesPlanted: increment(1),
@@ -65,30 +48,51 @@ const logSession = (durationSeconds, mode, taskName = null) => {
 export const TimerContext = createContext(null);
 
 export const TimerProvider = ({ children }) => {
+  const [settings, setSettings] = useState(() => {
+    const saved = localStorage.getItem('timerSettings');
+    return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
+  });
+
   const [mode, setMode] = useState(() => {
     const saved = localStorage.getItem('timerState');
     if (saved) return JSON.parse(saved).mode;
     return MODES.POMODORO;
   });
 
-  const [settings, setSettings] = useState(() => {
-    const saved = localStorage.getItem('timerSettings');
-    return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
+  const [activeMode, setActiveMode] = useState(() => {
+    const saved = localStorage.getItem('timerState');
+    if (saved) return JSON.parse(saved).activeMode || JSON.parse(saved).mode;
+    return MODES.POMODORO;
   });
-  
-  const [timeLeft, setTimeLeft] = useState(() => {
+
+  const [timers, setTimers] = useState(() => {
     const saved = localStorage.getItem('timerState');
     if (saved) {
       const state = JSON.parse(saved);
+      const savedTimers = state.timers || {
+        [MODES.POMODORO]: state.mode === MODES.POMODORO ? state.timeLeft : settings[MODES.POMODORO],
+        [MODES.SHORT_BREAK]: state.mode === MODES.SHORT_BREAK ? state.timeLeft : settings[MODES.SHORT_BREAK],
+        [MODES.LONG_BREAK]: state.mode === MODES.LONG_BREAK ? state.timeLeft : settings[MODES.LONG_BREAK],
+        [MODES.STOPWATCH]: state.mode === MODES.STOPWATCH ? state.timeLeft : 0
+      };
+      
       if (state.isRunning) {
         const elapsed = Math.floor((Date.now() - state.lastUpdated) / 1000);
-        return state.mode === MODES.STOPWATCH 
-          ? state.timeLeft + elapsed 
-          : Math.max(0, state.timeLeft - elapsed);
+        const aMode = state.activeMode || state.mode;
+        if (aMode === MODES.STOPWATCH) {
+          savedTimers[aMode] += elapsed;
+        } else {
+          savedTimers[aMode] = Math.max(0, savedTimers[aMode] - elapsed);
+        }
       }
-      return state.timeLeft;
+      return savedTimers;
     }
-    return settings[MODES.POMODORO];
+    return {
+      [MODES.POMODORO]: settings[MODES.POMODORO],
+      [MODES.SHORT_BREAK]: settings[MODES.SHORT_BREAK],
+      [MODES.LONG_BREAK]: settings[MODES.LONG_BREAK],
+      [MODES.STOPWATCH]: 0
+    };
   });
 
   const [isRunning, setIsRunning] = useState(() => {
@@ -96,11 +100,13 @@ export const TimerProvider = ({ children }) => {
     if (saved) {
       const state = JSON.parse(saved);
       if (state.isRunning) {
+        const aMode = state.activeMode || state.mode;
         const elapsed = Math.floor((Date.now() - state.lastUpdated) / 1000);
-        const newTime = state.mode === MODES.STOPWATCH 
-          ? state.timeLeft + elapsed 
-          : Math.max(0, state.timeLeft - elapsed);
-        return newTime > 0 || state.mode === MODES.STOPWATCH;
+        const savedTimers = state.timers || { [aMode]: state.timeLeft };
+        const newTime = aMode === MODES.STOPWATCH 
+          ? savedTimers[aMode] + elapsed 
+          : Math.max(0, savedTimers[aMode] - elapsed);
+        return newTime > 0 || aMode === MODES.STOPWATCH;
       }
     }
     return false;
@@ -116,10 +122,11 @@ export const TimerProvider = ({ children }) => {
         return saved ? JSON.parse(saved).currentTask : null;
     } catch (e) { return null; }
   })());
+
   const intervalRef = useRef(null);
   const startTimeRef = useRef(null);
-  const pausedTimeRef = useRef(0);
-  const sessionStartSecondsRef = useRef(0); // track seconds at session start
+  const isRunningRef = useRef(isRunning);
+  const autoStartRef = useRef(false);
 
   useEffect(() => {
     localStorage.setItem('timerSettings', JSON.stringify(settings));
@@ -129,125 +136,144 @@ export const TimerProvider = ({ children }) => {
     localStorage.setItem('focusSeconds', totalFocusSeconds.toString());
   }, [totalFocusSeconds]);
 
-  // Persist timer state every time it changes
   useEffect(() => {
     localStorage.setItem('timerState', JSON.stringify({
       mode,
-      timeLeft,
+      activeMode,
+      timers,
       isRunning,
       lastUpdated: Date.now(),
       currentTask: currentTaskRef.current
     }));
-  }, [mode, timeLeft, isRunning]);
+  }, [mode, activeMode, timers, isRunning]);
 
-  // Auto-start if it was running before reload
+  const switchMode = useCallback((newMode, forceAutoStart = false) => {
+    setMode(newMode);
+    
+    if (forceAutoStart) {
+        setIsRunning(false);
+        isRunningRef.current = false;
+        clearInterval(intervalRef.current);
+        
+        setActiveMode(newMode);
+        setTimers(prev => ({ ...prev, [newMode]: settings[newMode] }));
+        
+        autoStartRef.current = true;
+    }
+  }, [settings]);
+
+  const startTimer = useCallback((taskName = null) => {
+    setIsRunning(true);
+    isRunningRef.current = true;
+    setActiveMode(mode);
+    
+    if (taskName && typeof taskName === 'string') {
+        currentTaskRef.current = taskName;
+    }
+    
+    startTimeRef.current = Date.now();
+    const initialTime = timers[mode];
+
+    clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      let newTime;
+      
+      if (mode === MODES.STOPWATCH) {
+        newTime = initialTime + elapsed;
+        setTotalFocusSeconds(prev => prev + 1);
+      } else {
+        newTime = Math.max(0, initialTime - elapsed);
+        if (mode === MODES.POMODORO) {
+          setTotalFocusSeconds(prev => prev + 1);
+        }
+      }
+
+      setTimers(prev => ({ ...prev, [mode]: newTime }));
+
+      if (mode !== MODES.STOPWATCH && newTime === 0) {
+        setIsRunning(false);
+        isRunningRef.current = false;
+        clearInterval(intervalRef.current);
+
+        const sessionDuration = settings[mode];
+        const completedTask = currentTaskRef.current;
+        logSession(sessionDuration, mode, completedTask);
+        currentTaskRef.current = null;
+
+        if (mode === MODES.POMODORO && completedTask) {
+            try {
+                const savedTodos = localStorage.getItem('todos');
+                if (savedTodos) {
+                    const todos = JSON.parse(savedTodos);
+                    const updatedTodos = todos.map(t => 
+                        t.text === completedTask ? { ...t, done: true } : t
+                    );
+                    localStorage.setItem('todos', JSON.stringify(updatedTodos));
+                    window.dispatchEvent(new Event('todosUpdated'));
+                }
+            } catch (e) {}
+        }
+
+        const alarm = new Audio('/audio/end_time_pomodoro.mp3');
+        alarm.play().catch(() => {});
+        
+        if (mode === MODES.POMODORO) {
+          switchMode(MODES.SHORT_BREAK, true);
+        } else {
+          switchMode(MODES.POMODORO, true);
+        }
+      }
+    }, 1000);
+  }, [mode, timers, settings, switchMode]);
+
+  const stopTimer = useCallback(() => {
+    if (activeMode === mode) {
+      setIsRunning(false);
+      isRunningRef.current = false;
+      clearInterval(intervalRef.current);
+    } else {
+      setIsRunning(false);
+      isRunningRef.current = false;
+      clearInterval(intervalRef.current);
+    }
+  }, [activeMode, mode]);
+
+  const resetTimer = useCallback(() => {
+    if (activeMode === MODES.STOPWATCH && timers[activeMode] > 0) {
+      logSession(timers[activeMode], MODES.STOPWATCH, currentTaskRef.current);
+    }
+    
+    stopTimer();
+    setTimers(prev => ({ ...prev, [mode]: settings[mode] }));
+    currentTaskRef.current = null;
+  }, [activeMode, mode, timers, settings, stopTimer]);
+
+  const updateSettings = useCallback((newSettings) => {
+    setSettings(newSettings);
+    if (!isRunning || activeMode !== mode) {
+      setTimers(prev => ({ ...prev, [mode]: newSettings[mode] }));
+    }
+  }, [isRunning, activeMode, mode]);
+
   useEffect(() => {
     if (isRunning && !intervalRef.current) {
         startTimer(currentTaskRef.current);
     }
   }, []);
 
-  const switchMode = useCallback((newMode) => {
-    // Log stopwatch session if switching away from it
-    if (mode === MODES.STOPWATCH && timeLeft > 0) {
-      logSession(timeLeft, MODES.STOPWATCH, currentTaskRef.current);
+  useEffect(() => {
+    if (autoStartRef.current && timers[mode] === settings[mode]) {
+        autoStartRef.current = false;
+        startTimer(currentTaskRef.current);
     }
-    
-    setIsRunning(false);
-    clearInterval(intervalRef.current);
-    setMode(newMode);
-    setTimeLeft(settings[newMode]);
-    pausedTimeRef.current = 0;
-  }, [mode, timeLeft, settings]);
+  }, [mode, timers, settings, startTimer]);
 
-  const startTimer = useCallback((taskName = null) => {
-    setIsRunning(true);
-    if (taskName && typeof taskName === 'string') {
-        currentTaskRef.current = taskName;
-    }
-    startTimeRef.current = Date.now();
-    const initialTime = pausedTimeRef.current || timeLeft;
-    sessionStartSecondsRef.current = totalFocusSeconds;
-
-    intervalRef.current = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-      
-      if (mode === MODES.STOPWATCH) {
-        const newTime = initialTime + elapsed;
-        setTimeLeft(newTime);
-        setTotalFocusSeconds(prev => prev + 1);
-      } else {
-        const newTime = Math.max(0, initialTime - elapsed);
-        setTimeLeft(newTime);
-        
-        if (mode === MODES.POMODORO) {
-          setTotalFocusSeconds(prev => prev + 1);
-        }
-
-        if (newTime === 0) {
-          setIsRunning(false);
-          clearInterval(intervalRef.current);
-
-          // Log completed session with task name
-          const sessionDuration = settings[mode];
-          const completedTask = currentTaskRef.current;
-          logSession(sessionDuration, mode, completedTask);
-          currentTaskRef.current = null; // reset after log
-
-          if (mode === MODES.POMODORO && completedTask) {
-              try {
-                  const savedTodos = localStorage.getItem('todos');
-                  if (savedTodos) {
-                      const todos = JSON.parse(savedTodos);
-                      const updatedTodos = todos.map(t => 
-                          t.text === completedTask ? { ...t, done: true } : t
-                      );
-                      localStorage.setItem('todos', JSON.stringify(updatedTodos));
-                      window.dispatchEvent(new Event('todosUpdated'));
-                  }
-              } catch (e) {}
-          }
-
-          const alarm = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-typewriter-soft-keys-1110.mp3');
-          alarm.play().catch(() => {});
-          
-          if (mode === MODES.POMODORO) {
-            switchMode(MODES.SHORT_BREAK);
-          } else {
-            switchMode(MODES.POMODORO);
-          }
-        }
-      }
-    }, 1000);
-  }, [mode, timeLeft, switchMode, settings, totalFocusSeconds]);
-
-  const stopTimer = useCallback(() => {
-    setIsRunning(false);
-    clearInterval(intervalRef.current);
-    pausedTimeRef.current = timeLeft;
-  }, [timeLeft]);
-
-  const resetTimer = useCallback(() => {
-    // Log stopwatch session if resetting it
-    if (mode === MODES.STOPWATCH && timeLeft > 0) {
-      logSession(timeLeft, MODES.STOPWATCH, currentTaskRef.current);
-    }
-    
-    stopTimer();
-    setTimeLeft(settings[mode]);
-    pausedTimeRef.current = 0;
-    currentTaskRef.current = null;
-  }, [mode, timeLeft, settings, stopTimer]);
-
-  const updateSettings = useCallback((newSettings) => {
-    setSettings(newSettings);
-    if (!isRunning) {
-      setTimeLeft(newSettings[mode]);
-    }
-  }, [isRunning, mode]);
+  const timeLeft = timers[mode];
+  const isViewRunning = isRunning && activeMode === mode;
 
   const value = {
-    mode, timeLeft, isRunning, totalFocusSeconds,
+    mode, timeLeft, isRunning: isViewRunning, totalFocusSeconds,
     switchMode, startTimer, stopTimer, resetTimer,
     settings, updateSettings, MODES,
     currentTask: currentTaskRef.current

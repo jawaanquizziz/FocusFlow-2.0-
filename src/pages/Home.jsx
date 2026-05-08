@@ -842,44 +842,44 @@ const Home = () => {
         {/* Hero Timer Card - Takes 8 columns on large, full on small */}
         <motion.section 
           variants={itemVariants}
-          className="col-span-12 lg:col-span-8 glass flex flex-col items-center justify-center py-12 px-6 rounded-[2.5rem] relative group border border-white/10"
+          className="col-span-12 lg:col-span-8 glass flex flex-col items-center justify-center pt-20 pb-12 px-6 rounded-[2.5rem] relative group border border-white/10"
         >
-            <div className="absolute top-8 left-8 flex gap-2">
+            <div className="absolute top-6 sm:top-8 left-0 w-full px-6 sm:px-8 flex items-center justify-between z-10">
                 <button 
                     onClick={handlePip}
-                    className="p-3 rounded-2xl bg-white/5 text-text-muted hover:text-brand hover:bg-brand/10 transition-all shadow-lg"
+                    className="p-3 rounded-2xl bg-white/5 text-text-muted hover:text-brand hover:bg-brand/10 transition-all shadow-lg shrink-0"
                     title="Pop-out Floating Timer"
                 >
                     <ExternalLink size={24} />
                 </button>
-            </div>
 
-            <button 
-                onClick={() => setIsSettingsOpen(true)}
-                className="absolute top-8 right-8 text-text-muted hover:text-white transition-all p-3 hover:bg-white/5 rounded-2xl shadow-lg"
-            >
-                <SettingsIcon size={24} />
-            </button>
+                <div className="flex flex-wrap justify-center gap-2 sm:gap-3 flex-1 px-2 sm:px-4">
+                {[
+                    { id: MODES.POMODORO, label: 'Focus' },
+                    { id: MODES.SHORT_BREAK, label: 'Short Break' },
+                    { id: MODES.LONG_BREAK, label: 'Long Break' },
+                    { id: MODES.STOPWATCH, label: 'Stopwatch' }
+                ].map((m) => (
+                    <button
+                    key={m.id}
+                    onClick={() => switchMode(m.id)}
+                    className={`px-4 sm:px-6 py-2.5 rounded-2xl text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-all border ${
+                        mode === m.id 
+                        ? 'bg-brand text-white border-brand shadow-[0_8px_30px_rgba(88,101,242,0.4)] scale-105' 
+                        : 'text-text-muted border-transparent hover:border-white/10 hover:text-white'
+                    }`}
+                    >
+                    {m.label}
+                    </button>
+                ))}
+                </div>
 
-            <div className="flex flex-wrap justify-center gap-3 mb-12">
-            {[
-                { id: MODES.POMODORO, label: 'Focus' },
-                { id: MODES.SHORT_BREAK, label: 'Short Break' },
-                { id: MODES.LONG_BREAK, label: 'Long Break' },
-                { id: MODES.STOPWATCH, label: 'Stopwatch' }
-            ].map((m) => (
-                <button
-                key={m.id}
-                onClick={() => switchMode(m.id)}
-                className={`px-6 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all border ${
-                    mode === m.id 
-                    ? 'bg-brand text-white border-brand shadow-[0_8px_30px_rgba(88,101,242,0.4)] scale-105' 
-                    : 'text-text-muted border-transparent hover:border-white/10 hover:text-white'
-                }`}
+                <button 
+                    onClick={() => setIsSettingsOpen(true)}
+                    className="p-3 rounded-2xl bg-white/5 text-text-muted hover:text-white transition-all hover:bg-white/10 shadow-lg shrink-0"
                 >
-                {m.label}
+                    <SettingsIcon size={24} />
                 </button>
-            ))}
             </div>
 
             {isGroveMode && (

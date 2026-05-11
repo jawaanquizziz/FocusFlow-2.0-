@@ -21,17 +21,40 @@ const Background = ({ theme = 'midnight', wallpaper = '' }) => {
         {wallpaper && (
           <motion.div
             key={wallpaper}
-            initial={{ opacity: 0, scale: 1.08 }}
+            initial={{ opacity: 0, scale: 1.06 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 1.04 }}
+            exit={{ opacity: 0, scale: 1.03 }}
             transition={{ duration: 1.5, ease: 'circOut' }}
             className="absolute inset-0 z-[1]"
           >
-            <div className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-              style={{ backgroundImage: `url(${wallpaper})` }} />
-            <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(1px)' }} />
-            <div className="absolute inset-0"
-              style={{ background: `linear-gradient(to bottom, var(--bg-color)CC 0%, transparent 30%, transparent 70%, var(--bg-color)CC 100%)` }} />
+            {/* The photo — no blur, cover the full 4K viewport */}
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage: `url(${wallpaper})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center center',
+                backgroundRepeat: 'no-repeat',
+                backgroundAttachment: 'fixed',
+                imageRendering: 'high-quality',
+              }}
+            />
+            {/* Lighter dark scrim — lets the photo shine through */}
+            <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.28)' }} />
+            {/* Edge vignette only — keeps UI readable without dimming the centre */}
+            <div
+              className="absolute inset-0"
+              style={{
+                background: `radial-gradient(ellipse 100% 90% at 50% 50%, transparent 45%, rgba(0,0,0,0.55) 100%)`,
+              }}
+            />
+            {/* Bottom fade into theme bg colour */}
+            <div
+              className="absolute inset-x-0 bottom-0 h-48"
+              style={{
+                background: `linear-gradient(to bottom, transparent 0%, var(--bg-color)BB 100%)`,
+              }}
+            />
           </motion.div>
         )}
       </AnimatePresence>

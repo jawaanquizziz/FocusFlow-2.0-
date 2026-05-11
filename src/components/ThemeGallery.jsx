@@ -3,6 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Palette, Image as ImageIcon, Check, Sparkles } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 
+// Returns a small thumbnail URL (~480px) for fast gallery previews.
+// The full 4K URL is only loaded when the wallpaper is actually applied.
+const thumbUrl = (url) =>
+  url.replace('w=3840', 'w=480').replace('q=95', 'q=65');
+
 const THEME_COLORS = [
   // Original 5
   { id: 'midnight',  label: 'Midnight',   color: '#6366F1', desc: 'Cosmic Indigo' },
@@ -10,28 +15,59 @@ const THEME_COLORS = [
   { id: 'forest',    label: 'Forest',     color: '#34D399', desc: 'Deep Emerald' },
   { id: 'oceanic',   label: 'Oceanic',    color: '#38BDF8', desc: 'Ocean Blue' },
   { id: 'sunset',    label: 'Sunset',     color: '#FB923C', desc: 'Burning Dusk' },
-  // New 8
-  { id: 'aurora',    label: 'Aurora',     color: '#2DD4BF', desc: 'Northern Lights', isNew: true },
-  { id: 'rosegold',  label: 'Rose Gold',  color: '#F9A8D4', desc: 'Luxury Pink', isNew: true },
-  { id: 'crimson',   label: 'Crimson',    color: '#F87171', desc: 'Blood Red', isNew: true },
-  { id: 'galaxy',    label: 'Galaxy',     color: '#A78BFA', desc: 'Deep Violet', isNew: true },
-  { id: 'amber',     label: 'Amber',      color: '#FCD34D', desc: 'Golden Hour', isNew: true },
-  { id: 'arctic',    label: 'Arctic',     color: '#BAE6FD', desc: 'Ice Crystal', isNew: true },
-  { id: 'neonlime',  label: 'Neon Lime',  color: '#A3E635', desc: 'Electric Green', isNew: true },
-  { id: 'bloodmoon', label: 'Blood Moon', color: '#FF6B35', desc: 'Volcanic Ember', isNew: true },
+  // Wave 2
+  { id: 'aurora',       label: 'Aurora',        color: '#2DD4BF', desc: 'Northern Lights', isNew: true },
+  { id: 'rosegold',     label: 'Rose Gold',     color: '#F9A8D4', desc: 'Luxury Pink', isNew: true },
+  { id: 'crimson',      label: 'Crimson',       color: '#F87171', desc: 'Blood Red', isNew: true },
+  { id: 'galaxy',       label: 'Galaxy',        color: '#A78BFA', desc: 'Deep Violet', isNew: true },
+  { id: 'amber',        label: 'Amber',         color: '#FCD34D', desc: 'Golden Hour', isNew: true },
+  { id: 'arctic',       label: 'Arctic',        color: '#BAE6FD', desc: 'Ice Crystal', isNew: true },
+  { id: 'neonlime',     label: 'Neon Lime',     color: '#A3E635', desc: 'Electric Green', isNew: true },
+  { id: 'bloodmoon',    label: 'Blood Moon',    color: '#FF6B35', desc: 'Volcanic Ember', isNew: true },
+  // Wave 3 — NEW
+  { id: 'sakura',       label: 'Sakura',        color: '#FF7EB3', desc: 'Cherry Blossom', isNew: true },
+  { id: 'lava',         label: 'Lava',          color: '#FF4500', desc: 'Molten Core', isNew: true },
+  { id: 'aquamarine',   label: 'Aquamarine',    color: '#00E5CC', desc: 'Tropical Reef', isNew: true },
+  { id: 'deepspace',    label: 'Deep Space',    color: '#7B8FFF', desc: 'Infinite Void', isNew: true },
+  { id: 'copper',       label: 'Copper',        color: '#E8935A', desc: 'Warm Metal', isNew: true },
+  { id: 'mint',         label: 'Mint',          color: '#3FFFA2', desc: 'Fresh Glow', isNew: true },
+  { id: 'lavendermist', label: 'Lavender Mist', color: '#C4B5FD', desc: 'Dreamy Purple', isNew: true },
+  { id: 'solarflare',   label: 'Solar Flare',   color: '#FFD700', desc: 'Blazing Gold', isNew: true },
 ];
 
 const WALLPAPERS = [
-  { id: 'none',      label: 'Clean',       image: '', desc: 'Pure dark mode' },
-  { id: 'ethereal',  label: 'Ethereal Flow', image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1920&auto=format&fit=crop', desc: 'Abstract liquid gradient' },
-  { id: 'cyber',     label: 'Neon City',   image: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=1920&auto=format&fit=crop', desc: 'Cyberpunk streets' },
-  { id: 'zen',       label: 'Zen Garden',  image: 'https://images.unsplash.com/photo-1557456170-0cf4f4d0d362?q=80&w=1920&auto=format&fit=crop', desc: 'Minimalist calm' },
-  { id: 'space',     label: 'Stellar',     image: 'https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?q=80&w=1920&auto=format&fit=crop', desc: 'Deep cosmos' },
-  { id: 'mountain',  label: 'Peaks',       image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=80&w=1920&auto=format&fit=crop', desc: 'Alpine majesty' },
-  { id: 'forest2',   label: 'Forest Mist', image: 'https://images.unsplash.com/photo-1448375240586-882707db888b?q=80&w=1920&auto=format&fit=crop', desc: 'Misty woodlands' },
-  { id: 'aurora2',   label: 'Northern Lights', image: 'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?q=80&w=1920&auto=format&fit=crop', desc: 'Aurora borealis' },
-  { id: 'rain',      label: 'Rainy City',  image: 'https://images.unsplash.com/photo-1534274988757-a28bf1a57c17?q=80&w=1920&auto=format&fit=crop', desc: 'Wet neon nights' },
-  { id: 'desert',    label: 'Desert Dusk', image: 'https://images.unsplash.com/photo-1509316785289-025f5b846b35?q=80&w=1920&auto=format&fit=crop', desc: 'Golden sands' },
+  { id: 'none',      label: 'Clean',           image: '', desc: 'Pure dark mode' },
+  { id: 'ethereal',  label: 'Ethereal Flow',   image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=95&w=3840&auto=format&fit=crop', desc: 'Abstract liquid gradient' },
+  { id: 'cyber',     label: 'Neon City',       image: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=95&w=3840&auto=format&fit=crop', desc: 'Cyberpunk streets' },
+  { id: 'zen',       label: 'Zen Garden',      image: 'https://images.unsplash.com/photo-1557456170-0cf4f4d0d362?q=95&w=3840&auto=format&fit=crop', desc: 'Minimalist calm' },
+  { id: 'space',     label: 'Stellar',         image: 'https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?q=95&w=3840&auto=format&fit=crop', desc: 'Deep cosmos' },
+  { id: 'mountain',  label: 'Peaks',           image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=95&w=3840&auto=format&fit=crop', desc: 'Alpine majesty' },
+  { id: 'forest2',   label: 'Forest Mist',     image: 'https://images.unsplash.com/photo-1448375240586-882707db888b?q=95&w=3840&auto=format&fit=crop', desc: 'Misty woodlands' },
+  { id: 'aurora2',   label: 'Northern Lights', image: 'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?q=95&w=3840&auto=format&fit=crop', desc: 'Aurora borealis' },
+  { id: 'rain',      label: 'Rainy City',      image: 'https://images.unsplash.com/photo-1534274988757-a28bf1a57c17?q=95&w=3840&auto=format&fit=crop', desc: 'Wet neon nights' },
+  { id: 'desert',    label: 'Desert Dusk',     image: 'https://images.unsplash.com/photo-1509316785289-025f5b846b35?q=95&w=3840&auto=format&fit=crop', desc: 'Golden sands' },
+  // Wave 2 — Nature & City
+  { id: 'milkyway',     label: 'Milky Way',       image: 'https://images.unsplash.com/photo-1520034475321-cbe63696469a?q=95&w=3840&auto=format&fit=crop', desc: 'Galaxy core' },
+  { id: 'cherry',       label: 'Cherry Blossom',  image: 'https://images.unsplash.com/photo-1522383225653-ed111181a951?q=95&w=3840&auto=format&fit=crop', desc: 'Japanese spring' },
+  { id: 'volcanic',     label: 'Volcanic',        image: 'https://images.unsplash.com/photo-1516849841032-87cbac4d88f7?q=95&w=3840&auto=format&fit=crop', desc: 'Lava flows' },
+  { id: 'underwater',   label: 'Underwater',      image: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?q=95&w=3840&auto=format&fit=crop', desc: 'Vivid coral reef' },
+  { id: 'cabin',        label: 'Cozy Cabin',      image: 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?q=95&w=3840&auto=format&fit=crop', desc: 'Winter retreat' },
+  { id: 'neontokyo',    label: 'Neon Tokyo',      image: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?q=95&w=3840&auto=format&fit=crop', desc: 'City lights' },
+  { id: 'glacier',      label: 'Glacier',         image: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?q=95&w=3840&auto=format&fit=crop', desc: 'Frozen peaks' },
+  { id: 'lavenderfield',label: 'Lavender Field',  image: 'https://images.unsplash.com/photo-1499002238440-d264edd596ec?q=95&w=3840&auto=format&fit=crop', desc: 'Purple meadow' },
+  // Wave 3 — Student Vibes 📚
+  { id: 'library',      label: 'Library',         image: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?q=95&w=3840&auto=format&fit=crop', desc: 'Dark academia books' },
+  { id: 'coffeeshop',   label: 'Coffee Shop',     image: 'https://images.unsplash.com/photo-1445116572660-236099ec97a0?q=95&w=3840&auto=format&fit=crop', desc: 'Warm study vibes' },
+  { id: 'minimaldesk',  label: 'Minimal Desk',    image: 'https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?q=95&w=3840&auto=format&fit=crop', desc: 'Clean workspace' },
+  { id: 'starrynight',  label: 'Starry Night',    image: 'https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?q=95&w=3840&auto=format&fit=crop', desc: 'Infinite cosmos' },
+  { id: 'autumnpath',   label: 'Autumn Path',     image: 'https://images.unsplash.com/photo-1508739773434-c26b3d09e071?q=95&w=3840&auto=format&fit=crop', desc: 'Golden forest tunnel' },
+  { id: 'fogmountain',  label: 'Foggy Peaks',     image: 'https://images.unsplash.com/photo-1501854140801-50d01698950b?q=95&w=3840&auto=format&fit=crop', desc: 'Morning mist' },
+  { id: 'oceansunset',  label: 'Ocean Sunset',    image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=95&w=3840&auto=format&fit=crop', desc: 'Golden horizon' },
+  { id: 'fullmoon',     label: 'Full Moon',       image: 'https://images.unsplash.com/photo-1509909756405-be0199881695?q=95&w=3840&auto=format&fit=crop', desc: 'Lunar glow' },
+  { id: 'rainywindow',  label: 'Rainy Window',    image: 'https://images.unsplash.com/photo-1428908728789-d2de25dbd4e2?q=95&w=3840&auto=format&fit=crop', desc: 'Lofi rain vibes' },
+  { id: 'cityskyline',  label: 'City Skyline',    image: 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?q=95&w=3840&auto=format&fit=crop', desc: 'Urban night glow' },
+  { id: 'snowyforest',  label: 'Snowy Forest',    image: 'https://images.unsplash.com/photo-1418985991508-e47386d96a71?q=95&w=3840&auto=format&fit=crop', desc: 'Winter silence' },
+  { id: 'japtemple',    label: 'Kyoto Temple',    image: 'https://images.unsplash.com/photo-1528360983277-13d401cdc186?q=95&w=3840&auto=format&fit=crop', desc: 'Zen focus' },
 ];
 
 const ThemeGallery = ({ isOpen, onClose }) => {
@@ -262,7 +298,13 @@ const ThemeGallery = ({ isOpen, onClose }) => {
                       }`}
                     >
                       {w.image ? (
-                        <img src={w.image} alt={w.label} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        <img
+                          src={thumbUrl(w.image)}
+                          alt={w.label}
+                          loading="lazy"
+                          decoding="async"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
                       ) : (
                         <div className="w-full h-full bg-white/5 flex flex-col items-center justify-center gap-2">
                           <Palette size={20} className="text-text-muted opacity-50" />

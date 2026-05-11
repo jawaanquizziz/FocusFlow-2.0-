@@ -1,19 +1,13 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Palette } from 'lucide-react';
+import { X, Palette, ChevronRight } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 
-const THEMES = [
-  { id: 'midnight', label: 'Midnight', color: 'bg-[#5865F2]' },
-  { id: 'cyberpunk', label: 'Cyberpunk', color: 'bg-[#FF00E5]' },
-  { id: 'forest', label: 'Forest', color: 'bg-[#10B981]' },
-  { id: 'oceanic', label: 'Oceanic', color: 'bg-[#0EA5E9]' },
-  { id: 'sunset', label: 'Sunset', color: 'bg-[#F97316]' },
-];
 
-const SettingsModal = ({ isOpen, onClose, settings, onSave }) => {
+
+const SettingsModal = ({ isOpen, onClose, settings, onSave, onOpenThemeGallery }) => {
   const [localSettings, setLocalSettings] = React.useState(settings);
-  const { theme, setTheme } = useTheme();
+  const { theme } = useTheme();
 
   React.useEffect(() => {
     setLocalSettings(settings);
@@ -89,26 +83,31 @@ const SettingsModal = ({ isOpen, onClose, settings, onSave }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-muted mb-4 uppercase tracking-wide flex items-center gap-2">
+                <label className="block text-sm font-medium text-text-muted mb-3 uppercase tracking-wide flex items-center gap-2">
                   <Palette size={16} />
                   Visual Theme
                 </label>
-                <div className="grid grid-cols-5 gap-3">
-                  {THEMES.map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => setTheme(t.id)}
-                      className={`group relative flex flex-col items-center gap-2 transition-all p-1 rounded-xl border-2 ${
-                        theme === t.id ? 'border-brand' : 'border-transparent hover:border-white/10'
-                      }`}
-                    >
-                      <div className={`w-full aspect-square rounded-lg ${t.color} shadow-lg transition-transform group-hover:scale-110`} />
-                      <span className="text-[10px] font-bold uppercase tracking-tighter opacity-60">
-                        {t.label}
-                      </span>
-                    </button>
-                  ))}
-                </div>
+                <motion.button
+                  onClick={() => { onClose(); onOpenThemeGallery?.(); }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
+                  className="w-full flex items-center justify-between gap-3 p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-brand/40 hover:bg-brand/5 transition-all group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-8 h-8 rounded-xl shadow-lg shrink-0"
+                      style={{ background: `var(--brand-color)` }}
+                    />
+                    <div className="text-left">
+                      <p className="text-sm font-bold text-white capitalize">{theme}</p>
+                      <p className="text-[10px] text-text-muted">Active theme</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-brand">
+                    <span className="text-[10px] font-black uppercase tracking-widest">Browse All</span>
+                    <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </motion.button>
               </div>
             </div>
 

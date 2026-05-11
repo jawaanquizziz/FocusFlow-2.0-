@@ -1046,6 +1046,7 @@ const Home = () => {
         onClose={() => setIsSettingsOpen(false)}
         settings={settings}
         onSave={updateSettings}
+        onOpenThemeGallery={() => setIsThemeOpen(true)}
       />
 
       <ThemeGallery

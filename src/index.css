@@ -164,6 +164,94 @@
     --mesh-3: hsla(5, 85%, 50%, 0.08);
   }
 
+  [data-theme='sakura'] {
+    --brand-color: #FF7EB3;
+    --brand-hover-color: #FF4D94;
+    --brand-rgb: 255, 126, 179;
+    --bg-color: #0A0208;
+    --bg-secondary: #180510;
+    --mesh-1: hsla(330, 100%, 75%, 0.18);
+    --mesh-2: hsla(350, 90%, 65%, 0.12);
+    --mesh-3: hsla(310, 80%, 60%, 0.07);
+  }
+
+  [data-theme='lava'] {
+    --brand-color: #FF4500;
+    --brand-hover-color: #CC3700;
+    --brand-rgb: 255, 69, 0;
+    --bg-color: #080100;
+    --bg-secondary: #150200;
+    --mesh-1: hsla(16, 100%, 55%, 0.22);
+    --mesh-2: hsla(0, 90%, 45%, 0.16);
+    --mesh-3: hsla(35, 95%, 50%, 0.08);
+  }
+
+  [data-theme='aquamarine'] {
+    --brand-color: #00E5CC;
+    --brand-hover-color: #00C4AE;
+    --brand-rgb: 0, 229, 204;
+    --bg-color: #000D0B;
+    --bg-secondary: #001A16;
+    --mesh-1: hsla(174, 100%, 50%, 0.18);
+    --mesh-2: hsla(195, 95%, 45%, 0.14);
+    --mesh-3: hsla(160, 90%, 40%, 0.07);
+  }
+
+  [data-theme='deepspace'] {
+    --brand-color: #7B8FFF;
+    --brand-hover-color: #5C6FFF;
+    --brand-rgb: 123, 143, 255;
+    --bg-color: #01010A;
+    --bg-secondary: #03031A;
+    --mesh-1: hsla(230, 100%, 68%, 0.16);
+    --mesh-2: hsla(270, 85%, 55%, 0.12);
+    --mesh-3: hsla(200, 90%, 60%, 0.06);
+  }
+
+  [data-theme='copper'] {
+    --brand-color: #E8935A;
+    --brand-hover-color: #D4703A;
+    --brand-rgb: 232, 147, 90;
+    --bg-color: #080400;
+    --bg-secondary: #150900;
+    --mesh-1: hsla(25, 85%, 62%, 0.18);
+    --mesh-2: hsla(10, 80%, 48%, 0.12);
+    --mesh-3: hsla(40, 90%, 55%, 0.07);
+  }
+
+  [data-theme='mint'] {
+    --brand-color: #3FFFA2;
+    --brand-hover-color: #00E87A;
+    --brand-rgb: 63, 255, 162;
+    --bg-color: #000D06;
+    --bg-secondary: #00180A;
+    --mesh-1: hsla(152, 100%, 60%, 0.16);
+    --mesh-2: hsla(175, 90%, 50%, 0.12);
+    --mesh-3: hsla(130, 85%, 45%, 0.07);
+  }
+
+  [data-theme='lavendermist'] {
+    --brand-color: #C4B5FD;
+    --brand-hover-color: #A78BFA;
+    --brand-rgb: 196, 181, 253;
+    --bg-color: #060510;
+    --bg-secondary: #0E0A22;
+    --mesh-1: hsla(255, 90%, 78%, 0.16);
+    --mesh-2: hsla(280, 80%, 68%, 0.12);
+    --mesh-3: hsla(230, 85%, 65%, 0.07);
+  }
+
+  [data-theme='solarflare'] {
+    --brand-color: #FFD700;
+    --brand-hover-color: #FFC000;
+    --brand-rgb: 255, 215, 0;
+    --bg-color: #0A0700;
+    --bg-secondary: #1A0E00;
+    --mesh-1: hsla(48, 100%, 60%, 0.2);
+    --mesh-2: hsla(30, 95%, 50%, 0.14);
+    --mesh-3: hsla(60, 90%, 55%, 0.08);
+  }
+
   html {
     scroll-behavior: smooth;
   }

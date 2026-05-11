@@ -2,19 +2,8 @@ import { useState, useEffect, useCallback, useRef, createContext, useContext } f
 import { auth, db } from '../services/firebase';
 import { doc, setDoc, increment, arrayUnion } from 'firebase/firestore';
 
-export const MODES = {
-  POMODORO: 'pomodoro',
-  SHORT_BREAK: 'shortBreak',
-  LONG_BREAK: 'longBreak',
-  STOPWATCH: 'stopwatch'
-};
+import { MODES, DEFAULT_SETTINGS } from '../constants/timer';
 
-const DEFAULT_SETTINGS = {
-  pomodoro: 25 * 60,
-  shortBreak: 5 * 60,
-  longBreak: 15 * 60,
-  stopwatch: 0
-};
 
 const logSession = (durationSeconds, mode, taskName = null) => {
   const session = {
@@ -70,10 +59,10 @@ export const TimerProvider = ({ children }) => {
     if (saved) {
       const state = JSON.parse(saved);
       const savedTimers = state.timers || {
-        [MODES.POMODORO]: state.mode === MODES.POMODORO ? state.timeLeft : settings[MODES.POMODORO],
-        [MODES.SHORT_BREAK]: state.mode === MODES.SHORT_BREAK ? state.timeLeft : settings[MODES.SHORT_BREAK],
-        [MODES.LONG_BREAK]: state.mode === MODES.LONG_BREAK ? state.timeLeft : settings[MODES.LONG_BREAK],
-        [MODES.STOPWATCH]: state.mode === MODES.STOPWATCH ? state.timeLeft : 0
+        [MODES.POMODORO]: settings[MODES.POMODORO],
+        [MODES.SHORT_BREAK]: settings[MODES.SHORT_BREAK],
+        [MODES.LONG_BREAK]: settings[MODES.LONG_BREAK],
+        [MODES.STOPWATCH]: 0
       };
       
       if (state.isRunning) {
@@ -82,9 +71,19 @@ export const TimerProvider = ({ children }) => {
         if (aMode === MODES.STOPWATCH) {
           savedTimers[aMode] += elapsed;
         } else {
-          savedTimers[aMode] = Math.max(0, savedTimers[aMode] - elapsed);
+          // Calculate new time but don't let it be 0 if we want it to reset on next load
+          const remaining = (state.timers ? state.timers[aMode] : state.timeLeft) - elapsed;
+          savedTimers[aMode] = Math.max(0, remaining);
         }
+        return savedTimers;
       }
+
+      // If NOT running, ensure any 0 timers (except stopwatch) are reset to defaults
+      Object.keys(DEFAULT_SETTINGS).forEach(m => {
+        if (m !== MODES.STOPWATCH && (savedTimers[m] <= 0 || !savedTimers[m])) {
+            savedTimers[m] = settings[m];
+        }
+      });
       return savedTimers;
     }
     return {
@@ -102,11 +101,10 @@ export const TimerProvider = ({ children }) => {
       if (state.isRunning) {
         const aMode = state.activeMode || state.mode;
         const elapsed = Math.floor((Date.now() - state.lastUpdated) / 1000);
-        const savedTimers = state.timers || { [aMode]: state.timeLeft };
-        const newTime = aMode === MODES.STOPWATCH 
-          ? savedTimers[aMode] + elapsed 
-          : Math.max(0, savedTimers[aMode] - elapsed);
-        return newTime > 0 || aMode === MODES.STOPWATCH;
+        const savedTime = state.timers ? state.timers[aMode] : state.timeLeft;
+        
+        if (aMode === MODES.STOPWATCH) return true;
+        return (savedTime - elapsed) > 0;
       }
     }
     return false;
@@ -216,7 +214,7 @@ export const TimerProvider = ({ children }) => {
             } catch (e) {}
         }
 
-        const alarm = new Audio('/audio/spider_man_32.mp3');
+        const alarm = new Audio('/audio/end_time_pomodoro.mp3');
         alarm.play().catch(() => {});
         
         if (mode === MODES.POMODORO) {

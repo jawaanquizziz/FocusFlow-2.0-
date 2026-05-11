@@ -462,7 +462,7 @@
   body { background: white !important; color: black !important; }
   .min-h-screen { background: white !important; padding: 0 !important; color: black !important; }
   .glass { border: 1px solid #eee !important; background: white !important; box-shadow: none !important; }
-  header, .col-span-12, .lg:col-span-8, .lg:col-span-4 { color: black !important; }
+  header, .col-span-12, .lg\:col-span-8, .lg\:col-span-4 { color: black !important; }
   button, a[href], .p-3.bg-white\/5 { display: none !important; }
   .text-white, .text-brand, .text-text-muted, .text-emerald-400, .text-yellow-400 { color: black !important; }
   .glass p, .glass h1, .glass h2, .glass h3 { color: black !important; }

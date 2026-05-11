@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TreePine, Zap, Sprout, Wind, CalendarDays } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { MODES } from '../constants/timer';
 
 const ForestGrove = ({ progress, isRunning, mode }) => {
     const canvasRef = useRef(null);
@@ -13,7 +14,7 @@ const ForestGrove = ({ progress, isRunning, mode }) => {
     const { user } = useAuth();
     
     const percentage = Math.min(Math.max(progress || 0, 0), 1);
-    const isGrowable = mode === 'pomodoro' || mode === 'stopwatch';
+    const isGrowable = mode === MODES.POMODORO || mode === MODES.STOPWATCH;
 
     // Extract established trees from user sessions or local storage
     const { establishedTrees, totalTrees } = useMemo(() => {
@@ -27,7 +28,7 @@ const ForestGrove = ({ progress, isRunning, mode }) => {
         }
 
         // Filter out valid sessions that grew a tree
-        const treeSessions = sessionsToUse.filter(s => s.mode === 'pomodoro' || s.mode === 'stopwatch');
+        const treeSessions = sessionsToUse.filter(s => s.mode === MODES.POMODORO || s.mode === MODES.STOPWATCH);
         
         const trees = treeSessions.map((s, i) => {
             // Enhanced pseudo-random distribution for up to 100 trees

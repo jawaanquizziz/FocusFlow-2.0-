@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Settings as SettingsIcon, Clock, Calendar, Bell, Palette, LogOut, TreePine, Shield, UserPlus, X, Share2, Link as LinkIcon, Check, BarChart2, TrendingUp, Zap, Monitor, ExternalLink, ArrowLeft, MessageSquare } from 'lucide-react';
-import { useTimer, MODES } from '../hooks/useTimer.jsx';
+import { useTimer } from '../hooks/useTimer.jsx';
+import { MODES } from '../constants/timer';
 import TimerDisplay from '../components/TimerDisplay';
 import TodoList from '../components/TodoList';
 import AmbientSounds from '../components/AmbientSounds';
@@ -19,6 +20,8 @@ import FeedbackModal from '../components/FeedbackModal';
 import { db } from '../services/firebase';
 import { doc, getDoc, collection, query, orderBy, getDocs, onSnapshot } from 'firebase/firestore';
 import FeaturedFeedback from '../components/FeaturedFeedback';
+import FocusGuardian from '../components/FocusGuardian';
+import confetti from 'canvas-confetti';
 
 // ── ADMIN ACCESS CONFIGURATION ───────────────────────────────────
 // This MUST match the list in src/pages/Home.jsx
@@ -568,21 +571,43 @@ const Home = () => {
 
   const { permission, requestPermission, sendNotification } = useNotifications();
 
-  const lastTimeRef = React.useRef(timeLeft);
-  React.useEffect(() => {
-    if (lastTimeRef.current > 0 && timeLeft === 0 && !isRunning) {
-        const isFocus = mode === MODES.POMODORO;
-        const modeLabel = isFocus ? 'Focus session' : 'Break';
-        let bodyText = isFocus ? 'Time to take a break.' : 'Time to get back to work!';
-        if (isFocus && currentTask) {
-             bodyText = `Tree Planted! 🌳 You grew a tree for: ${currentTask}`;
-        }
-        sendNotification(`${modeLabel} finished!`, {
-            body: bodyText,
-            requireInteraction: true
-        });
+  const wasRunningRef = React.useRef(isRunning);
+  const lastModeRef = React.useRef(mode);
 
-        if (isFocus) {
+  React.useEffect(() => {
+    // Detect natural session completion
+    if (wasRunningRef.current && !isRunning) {
+        const finishedMode = lastModeRef.current;
+        const isFocus = finishedMode === MODES.POMODORO;
+        // Check if it transitioned to a break naturally
+        const transitionedToBreak = mode === MODES.SHORT_BREAK || mode === MODES.LONG_BREAK;
+
+        if (isFocus && transitionedToBreak) {
+            // 1. Browser Notification
+            if (Notification.permission === 'granted') {
+                sendNotification('Focus session finished!', {
+                    body: currentTask ? `Tree Planted! 🌳 You grew a tree for: ${currentTask}` : 'Time to take a break.',
+                    requireInteraction: true
+                });
+            } else if (Notification.permission !== 'denied') {
+                Notification.requestPermission();
+            }
+
+            // 2. Confetti Celebration
+            const duration = 4 * 1000;
+            const animationEnd = Date.now() + duration;
+            const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 1000 };
+            const randomInRange = (min, max) => Math.random() * (max - min) + min;
+
+            const interval = setInterval(function() {
+                const remaining = animationEnd - Date.now();
+                if (remaining <= 0) return clearInterval(interval);
+                const particleCount = 50 * (remaining / duration);
+                confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }, colors: ['#34D399', '#5865F2', '#10B981'] });
+                confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }, colors: ['#34D399', '#5865F2', '#10B981'] });
+            }, 250);
+
+            // 3. App Achievement Notification
             const newNotif = {
                 id: Date.now(),
                 title: 'Achievement Unlocked! 🌳',
@@ -590,13 +615,14 @@ const Home = () => {
                 time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
             };
             const existing = JSON.parse(localStorage.getItem('app_notifications') || '[]');
-            const updated = [newNotif, ...existing].slice(0, 20); // Keep last 20
+            const updated = [newNotif, ...existing].slice(0, 20);
             localStorage.setItem('app_notifications', JSON.stringify(updated));
             setNotificationsList(updated);
         }
     }
-    lastTimeRef.current = timeLeft;
-  }, [timeLeft, isRunning, mode, MODES, sendNotification, currentTask]);
+    wasRunningRef.current = isRunning;
+    lastModeRef.current = mode;
+  }, [isRunning, mode, currentTask, sendNotification]);
 
   React.useEffect(() => {
       // Load initial notifications
@@ -636,12 +662,42 @@ const Home = () => {
     show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } }
   };
 
+  const [currentQuote, setCurrentQuote] = useState('');
+  const FOCUS_QUOTES = [
+    "Stay focused, you got this!", "One step at a time.", "Deep breaths.", "Keep pushing forward.",
+    "Great things take time.", "Embrace the challenge.", "Maintain your momentum.",
+    "Small progress is still progress.", "Focus is a superpower.", "Every minute counts.",
+    "Don't stop until you're proud.", "Trust the process.", "Stay consistent."
+  ];
+  const LAST_5_MINS_QUOTES = [
+    "Come on, last 5 mins only!", "Almost there! Finish strong!", "Push through!",
+    "The finish line is in sight!", "Final sprint!", "Don't stop now!"
+  ];
+  const BREAK_QUOTES = ["Relax and recharge.", "Take a deep breath.", "Stretch your legs.", "Rest is productive.", "Refresh your energy."];
+
+  useEffect(() => {
+    const isBreak = mode === MODES.SHORT_BREAK || mode === MODES.LONG_BREAK;
+    if (!isRunning) {
+        setCurrentQuote(isBreak ? "Ready for a break?" : "Ready to focus?");
+        return;
+    }
+    const quotes = isBreak ? BREAK_QUOTES : (mode === MODES.POMODORO && timeLeft <= 300 ? LAST_5_MINS_QUOTES : FOCUS_QUOTES);
+    setCurrentQuote(quotes[Math.floor(Math.random() * quotes.length)]);
+
+    const interval = setInterval(() => {
+        const nextIsBreak = mode === MODES.SHORT_BREAK || mode === MODES.LONG_BREAK;
+        const nextQuotes = nextIsBreak ? BREAK_QUOTES : (mode === MODES.POMODORO && timeLeft <= 300 ? LAST_5_MINS_QUOTES : FOCUS_QUOTES);
+        setCurrentQuote(nextQuotes[Math.floor(Math.random() * nextQuotes.length)]);
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [isRunning, mode, timeLeft <= 300]);
+
   return (
     <motion.div 
       variants={containerVariants}
       initial="hidden"
       animate="show"
-      className="min-h-screen flex flex-col p-4 sm:p-8 space-y-6 max-w-[1400px] mx-auto w-full"
+      className="min-h-screen flex flex-col p-4 sm:p-8 space-y-6 max-w-[1400px] mx-auto w-full relative"
     >
       {/* Header Bento Card */}
       <motion.header 
@@ -889,6 +945,24 @@ const Home = () => {
                 </button>
             </div>
 
+
+
+            {/* Glass Quote Pill - Enhanced Size & Position */}
+            <AnimatePresence mode="wait">
+                {currentQuote && isRunning && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                        className="mb-8 px-10 py-4 glass rounded-[2rem] border border-white/20 shadow-2xl z-20 backdrop-blur-3xl"
+                    >
+                        <p className="text-sm font-black uppercase tracking-[0.4em] text-white glow text-center">
+                            {currentQuote}
+                        </p>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {isGroveMode && (
                 <div className="w-full mb-8">
                     <ForestGrove 
@@ -911,7 +985,7 @@ const Home = () => {
                 </button>
             </div>
 
-            <div className="mt-12 flex gap-4 w-full max-w-sm justify-center">
+            <div className="mt-12 flex gap-4 w-full max-w-sm justify-center relative z-10">
                 <button
                     onClick={handleStartFlowClick}
                     className={`flex-[2] py-5 rounded-3xl text-xl font-black tracking-[0.2em] transition-all active:scale-95 group relative overflow-hidden ${
@@ -1196,6 +1270,7 @@ const Home = () => {
         )}
       </AnimatePresence>
 
+      <FocusGuardian isRunning={isRunning} mode={mode} />
     </motion.div>
   );
 };

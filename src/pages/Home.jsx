@@ -947,21 +947,31 @@ const Home = () => {
 
 
 
-            {/* Glass Quote Pill - Enhanced Size & Position */}
-            <AnimatePresence mode="wait">
-                {currentQuote && isRunning && (
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.9, y: 10 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.9, y: 10 }}
-                        className="mb-8 px-10 py-4 glass rounded-[2rem] border border-white/20 shadow-2xl z-20 backdrop-blur-3xl"
-                    >
-                        <p className="text-sm font-black uppercase tracking-[0.4em] text-white glow text-center">
-                            {currentQuote}
-                        </p>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+            {/* Floating Motivational Text - Clean & Integrated */}
+            <div className="absolute top-[130px] left-1/2 -translate-x-1/2 w-full px-8 z-20">
+                <AnimatePresence mode="wait">
+                    {currentQuote && isRunning && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            className="flex flex-col items-center justify-center"
+                        >
+                            <p className="text-xl font-black uppercase tracking-[0.6em] text-white glow-sm text-center leading-relaxed max-w-4xl px-4">
+                                {currentQuote}
+                            </p>
+                            <motion.div 
+                                initial={{ width: 0 }}
+                                animate={{ width: "40px" }}
+                                className="h-[2px] bg-brand mt-3 rounded-full opacity-50 shadow-[0_0_10px_rgba(var(--brand-rgb),0.5)]"
+                            />
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
+
+            {/* Spacer to account for text */}
+            <div className="h-16" />
 
             {isGroveMode && (
                 <div className="w-full mb-8">

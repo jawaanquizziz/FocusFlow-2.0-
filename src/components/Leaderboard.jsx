@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    Trophy, Crown, Medal, Share2, X,
+    Trophy, Crown, Medal, Share2, X, Timer, Flame, Zap, Shield,
     Link as LinkIcon, Check, Search as SearchIcon
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
@@ -257,6 +257,8 @@ const Leaderboard = () => {
     const [sortBy, setSortBy] = useState('treesPlanted'); // 'treesPlanted', 'sessionsCount', 'totalFocusTime'
     const [dailyChampion, setDailyChampion] = useState(null);
     const [overallChampion, setOverallChampion] = useState(null);
+    const [dailyTimeChampion, setDailyTimeChampion] = useState(null);
+    const [overallTimeChampion, setOverallTimeChampion] = useState(null);
     const [showHallOfFame, setShowHallOfFame] = useState(false);
     const { user } = useAuth();
 
@@ -289,7 +291,9 @@ const Leaderboard = () => {
             const all = snap.docs.map(d => {
                 const data = d.data();
                 const userSessions = data.sessions || [];
-                const treesToday = userSessions.filter(s => s.date === todayStr && (s.mode === 'pomodoro' || s.mode === 'stopwatch')).length;
+                const todaySessions = userSessions.filter(s => s.date === todayStr && (s.mode === 'pomodoro' || s.mode === 'stopwatch'));
+                const treesToday = todaySessions.length;
+                const timeToday = todaySessions.reduce((acc, s) => acc + (s.duration || 0), 0);
                 
                 return {
                     id: d.id,
@@ -300,20 +304,30 @@ const Leaderboard = () => {
                     totalFocusTime: Number(data.totalFocusTime || 0),
                     lastActive: data.lastActive,
                     treesToday: treesToday,
+                    timeToday: timeToday,
                     sessions: userSessions
                 };
             });
 
-            // Find Overall Champion (top all-time trees)
-            const sortedAllTime = [...all].sort((a, b) => b.treesPlanted - a.treesPlanted);
-            if (sortedAllTime.length > 0) setOverallChampion(sortedAllTime[0]);
+            // Find Champions
+            const sortedTreesAllTime = [...all].sort((a, b) => b.treesPlanted - a.treesPlanted);
+            if (sortedTreesAllTime.length > 0) setOverallChampion(sortedTreesAllTime[0]);
 
-            // Find Daily Champion (top trees today)
-            const sortedToday = [...all].sort((a, b) => b.treesToday - a.treesToday || b.treesPlanted - a.treesPlanted);
-            if (sortedToday.length > 0 && sortedToday[0].treesToday > 0) {
-                setDailyChampion(sortedToday[0]);
+            const sortedTimeAllTime = [...all].sort((a, b) => b.totalFocusTime - a.totalFocusTime);
+            if (sortedTimeAllTime.length > 0) setOverallTimeChampion(sortedTimeAllTime[0]);
+
+            const sortedTreesToday = [...all].sort((a, b) => b.treesToday - a.treesToday || b.treesPlanted - a.treesPlanted);
+            if (sortedTreesToday.length > 0 && sortedTreesToday[0].treesToday > 0) {
+                setDailyChampion(sortedTreesToday[0]);
             } else {
                 setDailyChampion(null);
+            }
+
+            const sortedTimeToday = [...all].sort((a, b) => b.timeToday - a.timeToday || b.totalFocusTime - a.totalFocusTime);
+            if (sortedTimeToday.length > 0 && sortedTimeToday[0].timeToday > 0) {
+                setDailyTimeChampion(sortedTimeToday[0]);
+            } else {
+                setDailyTimeChampion(null);
             }
 
             // Sort logic for display
@@ -421,13 +435,39 @@ const Leaderboard = () => {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 {dailyChampion && (
                                     <div className="bg-gradient-to-br from-emerald-500/20 to-brand/10 border border-emerald-500/30 rounded-3xl p-4 relative overflow-hidden group">
-                                        <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:scale-125 transition-transform"><Medal size={40} className="text-emerald-400" /></div>
-                                        <p className="text-[8px] font-black uppercase tracking-[0.2em] text-emerald-400 mb-2">Champion of the Day 🏆</p>
+                                        <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:scale-125 transition-transform"><Flame size={40} className="text-emerald-400" /></div>
+                                        <p className="text-[8px] font-black uppercase tracking-[0.2em] text-emerald-400 mb-2">Tree Master 🌲</p>
                                         <div className="flex items-center gap-3">
                                             <Avatar photoURL={dailyChampion.photoURL} name={dailyChampion.name} size={40} />
-                                            <div>
-                                                <h4 className="text-sm font-black text-white">{dailyChampion.name}</h4>
+                                            <div className="min-w-0">
+                                                <h4 className="text-sm font-black text-white truncate">{dailyChampion.name}</h4>
                                                 <p className="text-[10px] text-emerald-400 font-bold">{dailyChampion.treesToday} Trees Today</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                                {dailyTimeChampion && (
+                                    <div className="bg-gradient-to-br from-brand/20 to-blue-500/10 border border-brand/30 rounded-3xl p-4 relative overflow-hidden group">
+                                        <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:scale-125 transition-transform"><Zap size={40} className="text-brand" /></div>
+                                        <p className="text-[8px] font-black uppercase tracking-[0.2em] text-brand mb-2">Study Specialist ⚡</p>
+                                        <div className="flex items-center gap-3">
+                                            <Avatar photoURL={dailyTimeChampion.photoURL} name={dailyTimeChampion.name} size={40} />
+                                            <div className="min-w-0">
+                                                <h4 className="text-sm font-black text-white truncate">{dailyTimeChampion.name}</h4>
+                                                <p className="text-[10px] text-brand font-bold">{fmtTime(dailyTimeChampion.timeToday)} Today</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                                {overallTimeChampion && (
+                                    <div className="bg-gradient-to-br from-purple-500/20 to-rose-500/10 border border-purple-500/30 rounded-3xl p-4 relative overflow-hidden group">
+                                        <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:scale-125 transition-transform"><Shield size={40} className="text-purple-400" /></div>
+                                        <p className="text-[8px] font-black uppercase tracking-[0.2em] text-purple-400 mb-2">Time Titan 💎</p>
+                                        <div className="flex items-center gap-3">
+                                            <Avatar photoURL={overallTimeChampion.photoURL} name={overallTimeChampion.name} size={40} />
+                                            <div className="min-w-0">
+                                                <h4 className="text-sm font-black text-white truncate">{overallTimeChampion.name}</h4>
+                                                <p className="text-[10px] text-purple-400 font-bold">{fmtTime(overallTimeChampion.totalFocusTime)} All-Time</p>
                                             </div>
                                         </div>
                                     </div>
@@ -438,9 +478,9 @@ const Leaderboard = () => {
                                         <p className="text-[8px] font-black uppercase tracking-[0.2em] text-yellow-500 mb-2">Overall Champion 👑</p>
                                         <div className="flex items-center gap-3">
                                             <Avatar photoURL={overallChampion.photoURL} name={overallChampion.name} size={40} />
-                                            <div>
-                                                <h4 className="text-sm font-black text-white">{overallChampion.name}</h4>
-                                                <p className="text-[10px] text-yellow-500 font-bold">{overallChampion.treesPlanted} Trees All-Time</p>
+                                            <div className="min-w-0">
+                                                <h4 className="text-sm font-black text-white truncate">{overallChampion.name}</h4>
+                                                <p className="text-[10px] text-yellow-500 font-bold">{overallChampion.treesPlanted} Trees Total</p>
                                             </div>
                                         </div>
                                     </div>
@@ -596,7 +636,16 @@ const Leaderboard = () => {
                                                     {ranker.name}
                                                     {me && <span className="text-[7px] bg-brand text-white px-1.5 py-0.5 rounded-full uppercase font-black tracking-wider shrink-0">You</span>}
                                                 </p>
-                                                <p className="text-[9px] text-text-muted">{fmtTime(ranker.totalFocusTime)}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-[9px] text-text-muted flex items-center gap-1">
+                                                        <Timer size={10} className="opacity-70" /> {fmtTime(ranker.totalFocusTime)}
+                                                    </p>
+                                                    {ranker.timeToday > 0 && (
+                                                        <p className="text-[8px] text-brand font-black uppercase tracking-tighter bg-brand/5 px-1 rounded">
+                                                            +{fmtTime(ranker.timeToday)} today
+                                                        </p>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
 

@@ -171,7 +171,11 @@ export const TimerProvider = ({ children }) => {
     }
     
     startTimeRef.current = Date.now();
-    const initialTime = timers[mode];
+    let initialTime = timers[mode];
+    if (mode !== MODES.STOPWATCH && initialTime <= 0) {
+        initialTime = settings[mode];
+        setTimers(prev => ({ ...prev, [mode]: settings[mode] }));
+    }
 
     clearInterval(intervalRef.current);
     intervalRef.current = setInterval(() => {
@@ -181,46 +185,49 @@ export const TimerProvider = ({ children }) => {
       if (mode === MODES.STOPWATCH) {
         newTime = initialTime + elapsed;
         setTotalFocusSeconds(prev => prev + 1);
+        setTimers(prev => ({ ...prev, [mode]: newTime }));
       } else {
         newTime = Math.max(0, initialTime - elapsed);
         if (mode === MODES.POMODORO) {
           setTotalFocusSeconds(prev => prev + 1);
         }
-      }
 
-      setTimers(prev => ({ ...prev, [mode]: newTime }));
+        if (newTime === 0) {
+          setIsRunning(false);
+          isRunningRef.current = false;
+          clearInterval(intervalRef.current);
 
-      if (mode !== MODES.STOPWATCH && newTime === 0) {
-        setIsRunning(false);
-        isRunningRef.current = false;
-        clearInterval(intervalRef.current);
+          const sessionDuration = settings[mode];
+          const completedTask = currentTaskRef.current;
+          logSession(sessionDuration, mode, completedTask);
+          currentTaskRef.current = null;
 
-        const sessionDuration = settings[mode];
-        const completedTask = currentTaskRef.current;
-        logSession(sessionDuration, mode, completedTask);
-        currentTaskRef.current = null;
+          setTimers(prev => ({ ...prev, [mode]: settings[mode] }));
 
-        if (mode === MODES.POMODORO && completedTask) {
-            try {
-                const savedTodos = localStorage.getItem('todos');
-                if (savedTodos) {
-                    const todos = JSON.parse(savedTodos);
-                    const updatedTodos = todos.map(t => 
-                        t.text === completedTask ? { ...t, done: true } : t
-                    );
-                    localStorage.setItem('todos', JSON.stringify(updatedTodos));
-                    window.dispatchEvent(new Event('todosUpdated'));
-                }
-            } catch (e) {}
-        }
+          if (mode === MODES.POMODORO && completedTask) {
+              try {
+                  const savedTodos = localStorage.getItem('todos');
+                  if (savedTodos) {
+                      const todos = JSON.parse(savedTodos);
+                      const updatedTodos = todos.map(t => 
+                          t.text === completedTask ? { ...t, done: true } : t
+                      );
+                      localStorage.setItem('todos', JSON.stringify(updatedTodos));
+                      window.dispatchEvent(new Event('todosUpdated'));
+                  }
+              } catch (e) {}
+          }
 
-        const alarm = new Audio('/audio/end_time_pomodoro.mp3');
-        alarm.play().catch(() => {});
-        
-        if (mode === MODES.POMODORO) {
-          switchMode(MODES.SHORT_BREAK, true);
+          const alarm = new Audio('/audio/end_time_pomodoro.mp3');
+          alarm.play().catch(() => {});
+          
+          if (mode === MODES.POMODORO) {
+            switchMode(MODES.SHORT_BREAK, true);
+          } else {
+            switchMode(MODES.POMODORO, true);
+          }
         } else {
-          switchMode(MODES.POMODORO, true);
+          setTimers(prev => ({ ...prev, [mode]: newTime }));
         }
       }
     }, 1000);

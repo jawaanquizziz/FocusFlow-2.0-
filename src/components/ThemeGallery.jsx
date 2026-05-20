@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Palette, Image as ImageIcon, Check, Sparkles } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
+import { useToast } from '../context/ToastContext';
 
 // Returns a small thumbnail URL (~480px) for fast gallery previews.
 // The full 4K URL is only loaded when the wallpaper is actually applied.
@@ -72,6 +73,7 @@ const WALLPAPERS = [
 
 const ThemeGallery = ({ isOpen, onClose }) => {
   const { theme, setTheme, wallpaper, setWallpaper } = useTheme();
+  const showToast = useToast();
   const [activeTab, setActiveTab] = useState('themes');
   const fileInputRef = React.useRef(null);
 
@@ -109,8 +111,9 @@ const ThemeGallery = ({ isOpen, onClose }) => {
         const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
         try {
           setWallpaper(dataUrl);
+          showToast('Custom wallpaper applied successfully!', 'success');
         } catch (err) {
-          alert('Failed to save image. It might be too large.');
+          showToast('Failed to save image. It might be too large.', 'error');
         }
       };
       img.src = event.target.result;

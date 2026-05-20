@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
+import Logo from './Logo';
 
 const SplashScreen = ({ onComplete }) => {
   useEffect(() => {
@@ -40,10 +41,7 @@ const SplashScreen = ({ onComplete }) => {
           transition={{ duration: 0.7, ease: [0.34, 1.56, 0.64, 1] }}
           className="relative"
         >
-          <div className="absolute inset-0 rounded-3xl blur-2xl opacity-70"
-            style={{ background: 'var(--brand-color)', transform: 'scale(1.3)' }} />
-          <img src="/logo.png" alt="FocusFlow"
-            className="relative w-20 h-20 rounded-3xl shadow-2xl ring-1 ring-white/10" />
+          <Logo size={90} />
         </motion.div>
 
         {/* Wordmark */}

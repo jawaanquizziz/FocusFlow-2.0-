@@ -205,7 +205,7 @@ export const useSpotify = () => {
     /* Connect — initiate PKCE OAuth */
     const connect = useCallback(async () => {
         if (!CLIENT_ID) {
-            alert('Add VITE_SPOTIFY_CLIENT_ID to your .env file!\nSee the Spotify setup instructions.');
+            console.warn('Add VITE_SPOTIFY_CLIENT_ID to your .env file! See the Spotify setup instructions.');
             return;
         }
         const verifier = generateVerifier();

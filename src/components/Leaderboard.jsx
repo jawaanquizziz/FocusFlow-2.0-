@@ -16,6 +16,7 @@ const TwitterIcon = ({ size = 18 }) => (
 import { db } from '../services/firebase';
 import { collection, onSnapshot, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../hooks/useAuth';
+import { useToast } from '../context/ToastContext';
 
 /* ─── Avatar helper ─────────────────────────────────────────────────── */
 const Avatar = ({ photoURL, name, size = 30 }) => {
@@ -37,6 +38,7 @@ const Avatar = ({ photoURL, name, size = 30 }) => {
 
 /* ─── Social Share Modal ────────────────────────────────────────────── */
 const ShareModal = ({ ranker, rank, onClose }) => {
+    const showToast = useToast();
     const [copied, setCopied] = useState(false);
     const [isCapturing, setIsCapturing] = useState(false);
     const captureRef = useRef(null);
@@ -52,43 +54,42 @@ const ShareModal = ({ ranker, rank, onClose }) => {
         setIsCapturing(true);
         try {
             // Small delay to ensure all animations/gradients are rendered
-            await new Promise(resolve => setTimeout(resolve, 100));
-
+            await new Promise(r => setTimeout(r, 450));
             const canvas = await html2canvas(captureRef.current, {
-                backgroundColor: '#0f172a',
-                scale: 3, // Ultra-high quality
                 useCORS: true,
-                logging: false,
+                allowTaint: true,
+                backgroundColor: '#0b0f19',
+                scale: 2 // double scale for crispness
             });
-            
+
             canvas.toBlob(async (blob) => {
                 if (!blob) {
                     setIsCapturing(false);
                     return;
                 }
+                const file = new File([blob], `focusflow-rank-${rank}-${Date.now()}.png`, { type: 'image/png' });
+
                 try {
-                    const file = new File([blob], `focusflow-rank-${rank}.png`, { type: 'image/png' });
-                    
-                    // 1. ALWAYS Copy to Clipboard first
+                    // Try copying to clipboard first (supported in modern browsers)
                     let clipboardSuccess = false;
                     try {
-                        if (navigator.clipboard && window.ClipboardItem) {
+                        if (navigator.clipboard && navigator.clipboard.write) {
                             await navigator.clipboard.write([
-                                new ClipboardItem({ 'image/png': blob })
+                                new ClipboardItem({ [file.type]: blob })
                             ]);
                             clipboardSuccess = true;
                         }
-                    } catch (err) {
-                        console.log('Direct clipboard write failed');
+                    } catch (clipErr) {
+                        console.log('Clipboard write failed, fallback to native share');
                     }
 
-                    // 2. Try Native Share (Mobile)
-                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    // Try native sharing if clipboard fails and web share is available
+                    if (!clipboardSuccess && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
                         try {
                             await navigator.share({
                                 files: [file],
-                                title: 'My FocusFlow Rank',
-                                text: `${shareText}\n${shareUrl}`
+                                title: 'My FocusFlow Ranking',
+                                text: shareText,
                             });
                             setIsCapturing(false);
                             return;
@@ -99,7 +100,7 @@ const ShareModal = ({ ranker, rank, onClose }) => {
 
                     // 3. Final Feedback / Fallback
                     if (clipboardSuccess) {
-                        alert('✨ Achievement Card Ready! It has been copied to your clipboard. Just PASTE (Ctrl+V) it into your chat!');
+                        showToast('✨ Achievement Card Ready! It has been copied to your clipboard. Just PASTE (Ctrl+V) it into your chat!', 'success');
                     } else {
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
@@ -107,7 +108,7 @@ const ShareModal = ({ ranker, rank, onClose }) => {
                         a.download = file.name;
                         a.click();
                         URL.revokeObjectURL(url);
-                        alert('✨ Achievement Card Downloaded!');
+                        showToast('✨ Achievement Card Downloaded!', 'success');
                     }
                 } catch (e) {
                     console.error('Sharing failed', e);

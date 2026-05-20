@@ -22,7 +22,7 @@ const Digit = ({ value, label }) => {
             exit={{ y: -18, opacity: 0, filter: 'blur(8px)' }}
             transition={{ type: 'spring', stiffness: 350, damping: 28 }}
             className="text-5xl sm:text-8xl font-bold text-white relative z-10"
-            style={{ fontFamily: 'JetBrains Mono, Fira Code, monospace', textShadow: '0 0 30px rgba(var(--brand-rgb),0.4)' }}
+            style={{ fontFamily: 'JetBrains Mono, Fira Code, monospace', textShadow: '0 2px 8px rgba(0,0,0,0.4)' }}
           >
             {value}
           </motion.span>

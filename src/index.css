@@ -274,31 +274,29 @@
 /* ── Premium Glass Utility ─────────────────────────────────────── */
 @utility glass {
   background: var(--glass-bg);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   position: relative;
 }
 
 @utility glass-card {
   background: var(--glass-bg);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   @apply rounded-3xl transition-all duration-300;
 }
 
-/* ── Glow effect ───────────────────────────────────────────────── */
+/* ── Glow effect — Toned down for high-end professional typography ──────────────── */
 @utility glow {
-  text-shadow:
-    0 0 20px rgba(var(--brand-rgb), 0.7),
-    0 0 60px rgba(var(--brand-rgb), 0.3);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 @utility glow-sm {
-  text-shadow: 0 0 12px rgba(var(--brand-rgb), 0.6);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
 }
 
 /* ── Scrollbar ─────────────────────────────────────────────────── */
@@ -406,8 +404,8 @@
 }
 .input-premium:focus {
   background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(var(--brand-rgb), 0.5);
-  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.12), 0 0 20px rgba(var(--brand-rgb), 0.08);
+  border-color: rgba(var(--brand-rgb), 0.4);
+  box-shadow: 0 0 0 2px rgba(var(--brand-rgb), 0.15);
   outline: none;
 }
 
@@ -415,18 +413,18 @@
 .btn-brand {
   background: linear-gradient(135deg, var(--brand-color) 0%, var(--brand-hover-color) 100%);
   box-shadow:
-    0 8px 24px rgba(var(--brand-rgb), 0.35),
-    0 1px 0 rgba(255,255,255,0.15) inset;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+    0 4px 12px rgba(0, 0, 0, 0.15),
+    0 1px 0 rgba(255, 255, 255, 0.1) inset;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
   overflow: hidden;
 }
 .btn-brand:hover {
-  filter: brightness(1.1);
+  filter: brightness(1.05);
   box-shadow:
-    0 12px 32px rgba(var(--brand-rgb), 0.45),
-    0 1px 0 rgba(255,255,255,0.15) inset;
-  transform: translateY(-1px);
+    0 6px 16px rgba(0, 0, 0, 0.2),
+    0 1px 0 rgba(255, 255, 255, 0.1) inset;
+  transform: translateY(-0.5px);
 }
 .btn-brand:active {
   transform: translateY(0) scale(0.98);
@@ -439,10 +437,10 @@
   border: 1px solid rgba(var(--brand-rgb), 0.2);
 }
 
-/* ── Divider glow ──────────────────────────────────────────────── */
+/* ── Divider glow — Toned down to clean, professional thin border ──────────────── */
 .divider-glow {
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(var(--brand-rgb), 0.4), transparent);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 /* ── Tag badge ─────────────────────────────────────────────────── */

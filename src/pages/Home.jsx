@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Settings as SettingsIcon, Clock, Calendar, Bell, Palette, LogOut, TreePine, Shield, UserPlus, X, Share2, Link as LinkIcon, Check, BarChart2, TrendingUp, Zap, Monitor, ExternalLink, ArrowLeft, MessageSquare } from 'lucide-react';
+import { Settings as SettingsIcon, Clock, Calendar, Bell, Palette, LogOut, TreePine, Shield, UserPlus, X, Share2, Link as LinkIcon, Check, BarChart2, TrendingUp, Zap, Monitor, ExternalLink, ArrowLeft, MessageSquare, Users, Lock } from 'lucide-react';
 import { useTimer } from '../hooks/useTimer.jsx';
+import Logo from '../components/Logo';
 import { MODES } from '../constants/timer';
 import TimerDisplay from '../components/TimerDisplay';
 import TodoList from '../components/TodoList';
@@ -17,6 +18,8 @@ import SpotifyPlayer from '../components/SpotifyPlayer';
 import { useAuth } from '../hooks/useAuth';
 import Achievements from '../components/Achievements';
 import FeedbackModal from '../components/FeedbackModal';
+import { useToast } from '../context/ToastContext';
+import { useDirectChat } from '../context/DirectChatContext';
 import { db } from '../services/firebase';
 import { doc, getDoc, collection, query, orderBy, getDocs, onSnapshot } from 'firebase/firestore';
 import FeaturedFeedback from '../components/FeaturedFeedback';
@@ -116,7 +119,7 @@ const InviteModal = ({ onClose, user }) => {
 
                     // 3. Final Feedback / Fallback
                     if (clipboardSuccess) {
-                        alert('✨ Image Card Ready! It has been copied to your clipboard. Just PASTE (Ctrl+V) it into your chat!');
+                        showToast('✨ Image Card Ready! It has been copied to your clipboard. Just PASTE (Ctrl+V) it into your chat!', 'success');
                     } else {
                         // DOWNLOAD FALLBACK
                         const url = URL.createObjectURL(blob);
@@ -125,7 +128,7 @@ const InviteModal = ({ onClose, user }) => {
                         a.download = `focusflow-invite-${Date.now()}.png`;
                         a.click();
                         URL.revokeObjectURL(url);
-                        alert('✨ Image Card Downloaded! You can now send it to your friends.');
+                        showToast('✨ Image Card Downloaded! You can now send it to your friends.', 'success');
                     }
                 } catch (e) {
                     console.error('Sharing process failed', e);
@@ -253,6 +256,9 @@ const Home = () => {
     currentTask
   } = useTimer();
 
+  const showToast = useToast();
+  const { setIsChatDrawerOpen, isChatDrawerOpen, unreadMsgs } = useDirectChat();
+
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isThemeOpen, setIsThemeOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
@@ -333,7 +339,7 @@ const Home = () => {
   // PIP (Floating Timer) Feature
   const handlePip = async () => {
     if (!document.pictureInPictureEnabled && !window.documentPictureInPicture) {
-      alert('Your browser does not support Picture-in-Picture mode. Please use Chrome or Edge.');
+      showToast('Your browser does not support Picture-in-Picture mode. Please use Chrome or Edge.', 'warning');
       return;
     }
 
@@ -705,7 +711,7 @@ const Home = () => {
         className="glass p-6 rounded-[2rem] flex flex-col sm:flex-row justify-between items-center gap-6 z-50"
       >
         <div className="flex items-center gap-4">
-            <img src="/logo.png" alt="FocusFlow" className="w-12 h-12 rounded-xl shadow-lg" />
+            <Logo size={48} />
             <div className="flex flex-col items-center sm:items-start">
                 <h1 className="text-2xl sm:text-3xl font-bold glow font-brand tracking-tight">
                 {user?.displayName ? `Hello, ${user.displayName.split(' ')[0]}` : 'FocusFlow'}
@@ -714,14 +720,14 @@ const Home = () => {
             </div>
         </div>
         
-        <div className="flex items-center gap-2">
-          <div className="bg-white/5 px-4 py-3 rounded-2xl flex items-center gap-3 border border-white/5 group hover:bg-white/10 transition-all cursor-default">
-            <div className="p-2 bg-brand/10 rounded-lg text-brand group-hover:scale-110 transition-transform">
-                <Clock size={18} />
+        <div className="flex flex-wrap items-center justify-center gap-2 w-full sm:w-auto">
+          <div className="bg-white/5 px-3 py-2 sm:px-4 sm:py-3 rounded-2xl flex items-center gap-2 sm:gap-3 border border-white/5 group hover:bg-white/10 transition-all cursor-default">
+            <div className="p-1.5 sm:p-2 bg-brand/10 rounded-lg text-brand group-hover:scale-110 transition-transform">
+                <Clock size={16} className="sm:w-[18px] sm:h-[18px]" />
             </div>
             <div className="flex flex-col">
-              <span className="text-[10px] text-text-muted uppercase tracking-wider font-bold">Total Depth</span>
-              <span className="text-sm font-bold text-white font-mono">{formatFocusTime(totalFocusSeconds)}</span>
+              <span className="text-[8px] sm:text-[10px] text-text-muted uppercase tracking-wider font-bold">Total Depth</span>
+              <span className="text-xs sm:text-sm font-bold text-white font-mono">{formatFocusTime(totalFocusSeconds)}</span>
             </div>
           </div>
           
@@ -732,6 +738,25 @@ const Home = () => {
           >
             <Palette size={20} />
             <span className="text-[9px] font-bold uppercase tracking-wider">Theme</span>
+          </button>
+
+          {/* Direct Messages / Chat button */}
+          <button 
+            onClick={() => setIsChatDrawerOpen(!isChatDrawerOpen)}
+            className={`p-2 sm:p-3 rounded-2xl transition-all relative flex flex-col items-center justify-center gap-1 min-w-[64px] ${
+              unreadMsgs.length > 0
+                ? 'text-brand bg-brand/10' 
+                : 'text-text-muted bg-white/5 hover:text-white hover:bg-brand/20'
+            }`}
+            title="Direct Messages"
+          >
+            <MessageSquare size={20} className="relative z-10" />
+            <span className="text-[9px] font-bold uppercase tracking-wider relative z-10">Chat</span>
+            {unreadMsgs.length > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 z-20 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-brand text-white text-[10px] font-black shadow-lg shadow-brand/40 ring-2 ring-[#0f172a] animate-bounce">
+                {unreadMsgs.length}
+              </span>
+            )}
           </button>
 
           <div className="relative">
@@ -899,23 +924,74 @@ const Home = () => {
 
       {/* Main Bento Grid */}
       <div className="grid grid-cols-12 gap-6 flex-1">
+
+        {/* Live Study Arena Call-To-Action Banner */}
+        <motion.div variants={itemVariants} className="col-span-12">
+            <Link to="/community" className="glass p-6 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between hover:border-yellow-500/40 transition-all group relative overflow-hidden bg-gradient-to-r from-yellow-500/10 via-brand/5 to-transparent border border-white/10 shadow-[0_10px_30px_rgba(234,179,8,0.05)]">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-yellow-500/5 blur-[80px] rounded-full -mr-20 -mt-20 group-hover:bg-yellow-500/15 transition-colors" />
+                <div className="flex items-center gap-5 relative z-10">
+                    <div className="p-4 bg-yellow-500/20 text-yellow-500 rounded-2xl group-hover:scale-110 transition-transform duration-500 relative">
+                        <Users size={32} />
+                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-500 rounded-full border-2 border-bg-dark animate-pulse" />
+                    </div>
+                    <div>
+                        <div className="flex items-center gap-3">
+                            <h3 className="text-xl sm:text-2xl font-black font-brand">Quest Arena & <span className="text-yellow-500">Live Study Rooms</span></h3>
+                            <span className="bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 font-black text-[9px] px-2.5 py-0.5 rounded-full uppercase tracking-wider">In Dev</span>
+                        </div>
+                        <p className="text-slate-400 text-sm font-semibold mt-1">Under Construction. Real-time study sessions with camera presence verification, chat, and daily rewards are coming soon!</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-3 relative z-10 mt-4 md:mt-0">
+                    <div className="text-right hidden sm:block">
+                        <p className="text-[10px] font-black uppercase text-text-muted tracking-widest">Status</p>
+                        <p className="text-sm font-black text-yellow-500">Developing 🛠️</p>
+                    </div>
+                    <div className="p-4 bg-white/5 border border-white/10 text-text-muted font-black text-xs uppercase tracking-widest rounded-2xl transition-all flex items-center gap-2 group-hover:border-yellow-500/30 group-hover:text-white">
+                        <Lock size={14} className="text-yellow-500 group-hover:scale-110 transition-transform" /> Under Construction
+                    </div>
+                </div>
+            </Link>
+        </motion.div>
         
         {/* Hero Timer Card - Takes 8 columns on large, full on small */}
         <motion.section 
           variants={itemVariants}
-          className="col-span-12 lg:col-span-8 glass flex flex-col items-center justify-center pt-20 pb-12 px-6 rounded-[2.5rem] relative group border border-white/10"
+          className="col-span-12 lg:col-span-8 glass flex flex-col items-center justify-center pt-36 sm:pt-20 pb-12 px-4 sm:px-6 rounded-[2.5rem] relative group border border-white/10"
         >
-            <div className="absolute top-6 sm:top-8 left-0 w-full px-6 sm:px-8 flex items-center justify-between z-10">
+            <div className="absolute top-4 sm:top-8 left-0 w-full px-4 sm:px-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 z-10">
+                {/* On mobile, show utility buttons in a top row */}
+                <div className="flex items-center justify-between w-full sm:hidden">
+                    <button 
+                        onClick={handlePip}
+                        className="p-2.5 rounded-2xl bg-white/5 text-text-muted hover:text-brand hover:bg-brand/10 transition-all shadow-lg flex items-center gap-2 px-4 py-3"
+                        title="Pop-out Floating Timer"
+                    >
+                        <ExternalLink size={16} />
+                        <span className="text-[10px] font-black uppercase tracking-wider">Pop-Out</span>
+                    </button>
+
+                    <button 
+                        onClick={() => setIsSettingsOpen(true)}
+                        className="p-2.5 rounded-2xl bg-white/5 text-text-muted hover:text-white transition-all hover:bg-white/10 shadow-lg flex items-center gap-2 px-4 py-3"
+                    >
+                        <SettingsIcon size={16} />
+                        <span className="text-[10px] font-black uppercase tracking-wider">Settings</span>
+                    </button>
+                </div>
+
+                {/* Desktop Left Button */}
                 <button 
                     onClick={handlePip}
-                    className="p-2 sm:p-3 rounded-2xl bg-white/5 text-text-muted hover:text-brand hover:bg-brand/10 transition-all shadow-lg shrink-0 flex flex-col items-center justify-center gap-1 min-w-[64px]"
+                    className="hidden sm:flex p-3 rounded-2xl bg-white/5 text-text-muted hover:text-brand hover:bg-brand/10 transition-all shadow-lg flex-col items-center justify-center gap-1 min-w-[64px]"
                     title="Pop-out Floating Timer"
                 >
                     <ExternalLink size={20} />
-                    <span className="text-[9px] font-bold uppercase tracking-wider hidden sm:block">Pop-Out</span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider">Pop-Out</span>
                 </button>
 
-                <div className="flex flex-wrap justify-center gap-2 sm:gap-3 flex-1 px-2 sm:px-4">
+                {/* Mode buttons in the middle */}
+                <div className="flex flex-wrap justify-center gap-1.5 sm:gap-3 sm:flex-1 px-1 sm:px-4 w-full sm:w-auto">
                 {[
                     { id: MODES.POMODORO, label: 'Focus' },
                     { id: MODES.SHORT_BREAK, label: 'Short Break' },
@@ -925,7 +1001,7 @@ const Home = () => {
                     <button
                     key={m.id}
                     onClick={() => switchMode(m.id)}
-                    className={`px-4 sm:px-6 py-2.5 rounded-2xl text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-all border ${
+                    className={`px-3 sm:px-6 py-2.5 rounded-2xl text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-all border ${
                         mode === m.id 
                         ? 'bg-brand text-white border-brand shadow-[0_8px_30px_rgba(88,101,242,0.4)] scale-105' 
                         : 'text-text-muted border-transparent hover:border-white/10 hover:text-white'
@@ -936,12 +1012,13 @@ const Home = () => {
                 ))}
                 </div>
 
+                {/* Desktop Right Button */}
                 <button 
                     onClick={() => setIsSettingsOpen(true)}
-                    className="p-2 sm:p-3 rounded-2xl bg-white/5 text-text-muted hover:text-white transition-all hover:bg-white/10 shadow-lg shrink-0 flex flex-col items-center justify-center gap-1 min-w-[64px]"
+                    className="hidden sm:flex p-3 rounded-2xl bg-white/5 text-text-muted hover:text-white transition-all hover:bg-white/10 shadow-lg flex-col items-center justify-center gap-1 min-w-[64px]"
                 >
                     <SettingsIcon size={20} />
-                    <span className="text-[9px] font-bold uppercase tracking-wider hidden sm:block">Settings</span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider">Settings</span>
                 </button>
             </div>
 

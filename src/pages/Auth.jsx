@@ -4,6 +4,7 @@ import { Mail, Lock, User, ArrowRight, Sparkles, BookOpen, Timer, Trophy, X, Fil
 import { useAuth } from '../hooks/useAuth';
 import { db } from '../services/firebase';
 import { collection, getCountFromServer } from 'firebase/firestore';
+import Logo from '../components/Logo';
 /* ─── Google Logo ───────────────────────────────────────────────── */
 const GoogleLogo = () => (
     <svg width="20" height="20" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
@@ -53,7 +54,7 @@ const LegalModal = ({ type, onClose }) => {
     const privacyContent = [
         {
             title: '1. Information We Collect',
-            body: 'We collect your name, email, and profile picture (if using Google Sign-In). We also store focus sessions, trees planted, and task data to power the leaderboard. Timer settings are stored locally in your browser.'
+            body: 'We collect your name, email, and profile picture (if using Google Sign-In). FocusCam webcam presence detection runs strictly locally inside your browser—no video feeds are ever recorded, saved, or transmitted to any servers. We also store focus sessions, trees planted, and task data to power the leaderboard. Timer settings are stored locally in your browser.'
         },
         {
             title: '2. How We Use Your Data',
@@ -272,10 +273,7 @@ const Auth = () => {
                     className="relative z-10 max-w-md w-full">
 
                     <div className="flex items-center gap-4 mb-12">
-                        <div className="relative">
-                            <div className="absolute inset-0 rounded-2xl blur-xl opacity-60" style={{ background: 'var(--brand-color)' }} />
-                            <img src="/logo.png" alt="FocusFlow" className="relative w-14 h-14 rounded-2xl shadow-2xl" />
-                        </div>
+                        <Logo size={60} />
                         <div>
                             <h1 className="text-2xl font-bold tracking-tight" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
                                 Focus<span style={{ color: 'var(--brand-color)' }}>Flow</span>
@@ -342,7 +340,7 @@ const Auth = () => {
 
                     {/* Mobile logo */}
                     <div className="lg:hidden flex items-center gap-3 mb-8">
-                        <img src="/logo.png" alt="FocusFlow" className="w-10 h-10 rounded-xl shadow-lg" />
+                        <Logo size={40} />
                         <span className="text-xl font-bold" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
                             Focus<span style={{ color: 'var(--brand-color)' }}>Flow</span>
                         </span>

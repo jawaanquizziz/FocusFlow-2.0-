@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, MessageSquare, Send, Check, Star } from 'lucide-react';
 import { db } from '../services/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useToast } from '../context/ToastContext';
 
 const CATEGORIES = [
     { id: 'general', label: '💬 General' },
@@ -12,6 +13,7 @@ const CATEGORIES = [
 ];
 
 const FeedbackModal = ({ onClose, user }) => {
+    const showToast = useToast();
     const [category, setCategory] = useState('general');
     const [rating, setRating] = useState(0);
     const [hoverRating, setHoverRating] = useState(0);
@@ -42,7 +44,7 @@ const FeedbackModal = ({ onClose, user }) => {
             }, 2000);
         } catch (err) {
             console.error('Feedback submit failed:', err);
-            alert('Failed to send feedback. Please try again.');
+            showToast('Failed to send feedback. Please try again.', 'error');
         } finally {
             setSending(false);
         }

@@ -9,10 +9,12 @@ import Admin from './pages/Admin';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
 import Reports from './pages/Reports';
+import Community from './pages/Community';
 
 import Background from './components/Background';
 import SplashScreen from './components/SplashScreen';
 
+import DirectChatDrawer from './components/DirectChatDrawer';
 import Auth from './pages/Auth';
 import { useAuth } from './hooks/useAuth';
 import { useTheme } from './hooks/useTheme';
@@ -67,12 +69,12 @@ function App() {
                                 <Route path="/profile" element={<Profile />} />
                                 <Route path="/admin" element={<Admin />} />
                                 <Route path="/reports" element={<Reports />} />
+                                <Route path="/community" element={<Community />} />
                                 <Route path="/terms" element={<Terms />} />
                                 <Route path="/privacy" element={<Privacy />} />
                                 <Route path="*" element={<Navigate to="/" replace />} />
                             </Routes>
-
-
+                            <DirectChatDrawer />
                         </motion.div>
                     )}
                 </AnimatePresence>

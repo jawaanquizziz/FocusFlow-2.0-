@@ -7,6 +7,7 @@ import {
     MessageSquare, Star, Mail, Pin, PinOff
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { useToast } from '../context/ToastContext';
 import { db } from '../services/firebase';
 import { collection, onSnapshot, deleteDoc, doc, setDoc, serverTimestamp, query, orderBy, updateDoc } from 'firebase/firestore';
 
@@ -41,6 +42,7 @@ const fmtTime = (s) => {
 
 const Admin = () => {
     const { user, loading: authLoading } = useAuth();
+    const showToast = useToast();
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -54,6 +56,10 @@ const Admin = () => {
     const [sendingNotif, setSendingNotif] = useState(false);
     const [feedbackList, setFeedbackList] = useState([]);
     const [feedbackLoading, setFeedbackLoading] = useState(true);
+    
+    // Inactive User States
+    const [inactiveFilter, setInactiveFilter] = useState('all'); // 'all', '0time', '7days', '30days'
+    const [pruning, setPruning] = useState(false);
 
     const isAdmin = user && (
         ADMIN_EMAILS.includes(user.email) ||
@@ -133,10 +139,10 @@ const Admin = () => {
             });
             setNotifTitle('');
             setNotifMessage('');
-            alert('Global notification sent successfully!');
+            showToast('Global notification sent successfully!', 'success');
         } catch (e) {
             console.error(e);
-            alert('Failed to send notification.');
+            showToast('Failed to send notification.', 'error');
         } finally {
             setSendingNotif(false);
         }
@@ -145,7 +151,7 @@ const Admin = () => {
     const handleClearNotif = async () => {
         try {
             await setDoc(doc(db, 'settings', 'notifications'), { active: false }, { merge: true });
-            alert('Global notification cleared.');
+            showToast('Global notification cleared.', 'success');
         } catch (e) { console.error(e); }
     };
 
@@ -158,11 +164,82 @@ const Admin = () => {
         finally { setDeleting(null); setConfirmDelete(null); }
     };
 
+    const getMillis = (ts) => {
+        if (!ts) return 0;
+        if (typeof ts === 'string') return new Date(ts).getTime();
+        if (typeof ts.toMillis === 'function') return ts.toMillis();
+        if (ts.seconds) return ts.seconds * 1000;
+        const parsed = new Date(ts).getTime();
+        return isNaN(parsed) ? 0 : parsed;
+    };
+
+    const handlePruneInactive = async () => {
+        let label = '';
+        let targetUsers = [];
+
+        if (inactiveFilter === '0time') {
+            label = 'inactive users with 0 focus time';
+            targetUsers = users.filter(u => u.totalFocusTime === 0);
+        } else if (inactiveFilter === '7days') {
+            label = 'users inactive for more than 7 days';
+            targetUsers = users.filter(u => {
+                const act = getMillis(u.lastActive || u.createdAt);
+                return act === 0 || (Date.now() - act) > 7 * 24 * 60 * 60 * 1000;
+            });
+        } else if (inactiveFilter === '30days') {
+            label = 'users inactive for more than 30 days';
+            targetUsers = users.filter(u => {
+                const act = getMillis(u.lastActive || u.createdAt);
+                return act === 0 || (Date.now() - act) > 30 * 24 * 60 * 60 * 1000;
+            });
+        } else {
+            showToast('Please select an inactivity filter (e.g. 0-Time, 7 Days, or 30 Days) before pruning.', 'warning');
+            return;
+        }
+
+        if (targetUsers.length === 0) {
+            showToast(`No ${label} found to delete.`, 'info');
+            return;
+        }
+
+        if (!window.confirm(`Are you sure you want to permanently delete all ${targetUsers.length} ${label}? This action is irreversible.`)) {
+            return;
+        }
+
+        setPruning(true);
+        try {
+            let count = 0;
+            for (const u of targetUsers) {
+                await deleteDoc(doc(db, 'users', u.id));
+                count++;
+            }
+            showToast(`Successfully deleted ${count} accounts.`, 'success');
+        } catch (e) {
+            console.error('Failed to prune users:', e);
+            showToast('Failed to prune some inactive users.', 'error');
+        } finally {
+            setPruning(false);
+        }
+    };
+
     const filtered = users
         .filter(u => {
-            if (!search) return true;
-            const s = search.toLowerCase();
-            return (u.name || '').toLowerCase().includes(s) || (u.email || '').toLowerCase().includes(s);
+            const matchesSearch = !search || 
+                (u.name || '').toLowerCase().includes(search.toLowerCase()) || 
+                (u.email || '').toLowerCase().includes(search.toLowerCase());
+            
+            let matchesInactive = true;
+            if (inactiveFilter === '0time') {
+                matchesInactive = u.totalFocusTime === 0;
+            } else if (inactiveFilter === '7days') {
+                const act = getMillis(u.lastActive || u.createdAt);
+                matchesInactive = act === 0 || (Date.now() - act) > 7 * 24 * 60 * 60 * 1000;
+            } else if (inactiveFilter === '30days') {
+                const act = getMillis(u.lastActive || u.createdAt);
+                matchesInactive = act === 0 || (Date.now() - act) > 30 * 24 * 60 * 60 * 1000;
+            }
+            
+            return matchesSearch && matchesInactive;
         })
         .sort((a, b) => {
             const av = a[sortKey] ?? 0, bv = b[sortKey] ?? 0;
@@ -289,17 +366,43 @@ const Admin = () => {
                 ))}
             </motion.div>
 
-            {/* Search */}
-            <motion.div variants={item} className="glass p-4 rounded-2xl border border-white/5 flex items-center gap-3">
-                <Search size={16} className="text-text-muted shrink-0" />
-                <input value={search} onChange={e => setSearch(e.target.value)}
-                    placeholder="Search by name or email..."
-                    className="flex-1 bg-transparent focus:outline-none text-sm font-medium placeholder:text-text-muted/50" />
-                {search && (
-                    <button onClick={() => setSearch('')} className="text-text-muted hover:text-white transition-colors">
-                        <Zap size={14} />
+            {/* Search & Filters */}
+            <motion.div variants={item} className="flex flex-col md:flex-row gap-4">
+                <div className="glass p-4 rounded-2xl border border-white/5 flex items-center gap-3 flex-1">
+                    <Search size={16} className="text-text-muted shrink-0" />
+                    <input value={search} onChange={e => setSearch(e.target.value)}
+                        placeholder="Search by name or email..."
+                        className="flex-1 bg-transparent focus:outline-none text-sm font-medium placeholder:text-text-muted/50" />
+                    {search && (
+                        <button onClick={() => setSearch('')} className="text-text-muted hover:text-white transition-colors">
+                            <Zap size={14} />
+                        </button>
+                    )}
+                </div>
+
+                <div className="flex flex-wrap gap-3 items-center">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-text-muted/60">Inactivity Filter:</span>
+                    <select
+                        value={inactiveFilter}
+                        onChange={e => setInactiveFilter(e.target.value)}
+                        className="bg-white/5 border border-white/10 text-white rounded-2xl px-4 py-3.5 text-xs font-bold focus:outline-none focus:border-brand/40"
+                    >
+                        <option value="all" className="bg-[#0f172a] text-white">All Users</option>
+                        <option value="0time" className="bg-[#0f172a] text-white">0 Focus Time</option>
+                        <option value="7days" className="bg-[#0f172a] text-white">Inactive &gt; 7 Days</option>
+                        <option value="30days" className="bg-[#0f172a] text-white">Inactive &gt; 30 Days</option>
+                    </select>
+
+                    <button
+                        onClick={handlePruneInactive}
+                        disabled={pruning || inactiveFilter === 'all'}
+                        className="px-5 py-3.5 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        title={inactiveFilter === 'all' ? 'Please select an inactivity filter to prune' : ''}
+                    >
+                        <Trash2 size={14} />
+                        {pruning ? 'Pruning...' : 'Prune Filtered Accounts'}
                     </button>
-                )}
+                </div>
             </motion.div>
 
             {/* Table */}
@@ -353,9 +456,12 @@ const Admin = () => {
                                     <div className="flex items-center gap-3 min-w-0">
                                         <Avatar photoURL={u.photoURL} name={u.name} size={32} />
                                         <div className="min-w-0">
-                                            <p className="text-sm font-bold truncate flex items-center gap-1.5">
+                                            <p className="text-sm font-bold truncate flex items-center gap-1.5 flex-wrap">
                                                 {u.name || 'Anonymous'}
                                                 {u.treesPlanted >= 10 && <Crown size={10} className="text-yellow-400 shrink-0" />}
+                                                {u.totalFocusTime === 0 && (
+                                                    <span className="text-[7px] bg-red-500/25 border border-red-500/40 text-red-400 px-1.5 py-0.5 rounded-full uppercase font-black tracking-wider shrink-0">Inactive</span>
+                                                )}
                                             </p>
                                             <p className="text-[10px] text-text-muted truncate">{u.id}</p>
                                         </div>

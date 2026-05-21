@@ -11,7 +11,7 @@ const logSession = (durationSeconds, mode, taskName = null) => {
     date: new Date().toLocaleDateString('en-CA'),
     duration: durationSeconds,
     mode,
-    task: taskName
+    task: taskName || null
   };
 
   const existing = JSON.parse(localStorage.getItem('focusSessions') || '[]');
@@ -117,7 +117,8 @@ export const TimerProvider = ({ children }) => {
   const currentTaskRef = useRef((() => {
     const saved = localStorage.getItem('timerState');
     try {
-        return saved ? JSON.parse(saved).currentTask : null;
+        const parsed = saved ? JSON.parse(saved).currentTask : null;
+        return parsed === undefined ? null : parsed;
     } catch (e) { return null; }
   })());
 

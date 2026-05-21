@@ -46,7 +46,7 @@ const Progress = () => {
       d.setDate(d.getDate() - i);
       const dateStr = d.toLocaleDateString('en-CA');
       const dayLabel = d.toLocaleDateString('en-US', { weekday: 'short' });
-      const daySessions = sessions.filter(s => s.date === dateStr && s.mode === 'pomodoro');
+      const daySessions = sessions.filter(s => s.date === dateStr && (s.mode === 'pomodoro' || s.mode === 'stopwatch'));
       const hours = daySessions.reduce((acc, s) => acc + (s.duration || 0), 0) / 3600;
       days.push({ day: dayLabel, hours: parseFloat(hours.toFixed(2)), date: dateStr });
     }
@@ -63,7 +63,7 @@ const Progress = () => {
   // Task distribution for Pie Chart
   const pieData = (() => {
       const distribution = sessions
-          .filter(s => s.mode === 'pomodoro' && s.task)
+          .filter(s => (s.mode === 'pomodoro' || s.mode === 'stopwatch') && s.task)
           .reduce((acc, s) => {
               acc[s.task] = (acc[s.task] || 0) + 1;
               return acc;
@@ -79,10 +79,10 @@ const Progress = () => {
 
   // Stats
   const totalHours = (totalFocusSeconds / 3600).toFixed(1);
-  const todaySec = sessions.filter(s => s.date === new Date().toLocaleDateString('en-CA') && s.mode === 'pomodoro').reduce((a, s) => a + (s.duration || 0), 0);
+  const todaySec = sessions.filter(s => s.date === new Date().toLocaleDateString('en-CA') && (s.mode === 'pomodoro' || s.mode === 'stopwatch')).reduce((a, s) => a + (s.duration || 0), 0);
   const todayHours = (todaySec / 3600).toFixed(1);
   const completedTodos = todos.filter(t => t.completed).length;
-  const treesPlanted = user?.treesPlanted || sessions.filter(s => s.mode === 'pomodoro').length;
+  const treesPlanted = user?.treesPlanted || sessions.filter(s => s.mode === 'pomodoro' || s.mode === 'stopwatch').length;
 
   const streak = (() => {
     let count = 0;
@@ -91,14 +91,14 @@ const Progress = () => {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
       const dateStr = d.toLocaleDateString('en-CA');
-      const hasSessions = sessions.some(s => s.date === dateStr && s.mode === 'pomodoro');
+      const hasSessions = sessions.some(s => s.date === dateStr && (s.mode === 'pomodoro' || s.mode === 'stopwatch'));
       if (hasSessions) count++;
       else if (i > 0) break;
     }
     return count;
   })();
 
-  const recentSessions = [...sessions].filter(s => s.mode === 'pomodoro').reverse().slice(0, 8);
+  const recentSessions = [...sessions].filter(s => s.mode === 'pomodoro' || s.mode === 'stopwatch').reverse().slice(0, 8);
 
   const containerVariants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
   const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };

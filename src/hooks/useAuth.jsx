@@ -36,7 +36,74 @@ export const AuthProvider = ({ children }) => {
                     
                     if (snap.exists()) {
                         const data = snap.data();
-                        setUser({ ...firebaseUser, ...data });
+                        
+                        // BIDIRECTIONAL SYNC (Laptop <=> PC)
+                        const localSessions = JSON.parse(localStorage.getItem('focusSessions') || '[]');
+                        const localFocusSeconds = parseInt(localStorage.getItem('focusSeconds') || '0');
+                        const localTrees = localSessions.filter(s => s.mode === 'pomodoro' || s.mode === 'stopwatch').length;
+
+                        // Sync logic: Keep max values of all stats — NEVER REDUCE
+                        // Rule: targetX = max(localX, cloudX). Only write to Firestore
+                        // when the result would INCREASE the stored value.
+                        const targetTrees = Math.max(localTrees, Number(data.treesPlanted || 0));
+                        const targetFocusTime = Math.max(localFocusSeconds, Number(data.totalFocusTime || 0));
+                        const targetSessionsCount = Math.max(localSessions.length, Number(data.sessionsCount || 0));
+
+                        // Self-healing: also check the sessions ARRAY stored in Firestore.
+                        // If the array has more tree-sessions than the counter (e.g. due to a
+                        // past bug), silently fix the counter so it never goes out of sync again.
+                        const cloudSessionsArray = data.sessions || [];
+                        const cloudTreesFromArr = cloudSessionsArray.filter(
+                            s => s.mode === 'pomodoro' || s.mode === 'stopwatch'
+                        ).length;
+                        const selfHealedTrees    = Math.max(targetTrees,        cloudTreesFromArr);
+                        const selfHealedSessions = Math.max(targetSessionsCount, cloudSessionsArray.length);
+
+                        const needsFirestoreUpdate =
+                            selfHealedTrees    > Number(data.treesPlanted  || 0) ||
+                            targetFocusTime    > Number(data.totalFocusTime || 0) ||
+                            selfHealedSessions > Number(data.sessionsCount  || 0);
+
+                        if (needsFirestoreUpdate) {
+                            await setDoc(userDocRef, {
+                                treesPlanted:  selfHealedTrees,
+                                sessionsCount: selfHealedSessions,
+                                totalFocusTime: targetFocusTime,
+                            }, { merge: true });
+                        }
+
+                        // Ensure local storage matches the superior cloud data
+                        localStorage.setItem('focusSeconds', targetFocusTime.toString());
+
+                        // Merge cloud sessions into localStorage so ForestGrove shows all trees
+                        // even on a fresh device/browser (reuse cloudSessionsArray from above)
+                        if (cloudSessionsArray.length > 0) {
+                            try {
+                                const combined = [...localSessions, ...cloudSessionsArray];
+                                const seen = new Set();
+                                const merged = combined.filter(s => {
+                                    // Deduplicate by timestamp (or date+duration as fallback)
+                                    const key = s.timestamp || `${s.date}-${s.duration}-${s.mode}`;
+                                    if (seen.has(key)) return false;
+                                    seen.add(key);
+                                    return true;
+                                });
+                                // Keep last 100, sorted by timestamp
+                                const sorted = merged.sort((a, b) =>
+                                    new Date(a.timestamp || 0) - new Date(b.timestamp || 0)
+                                ).slice(-100);
+                                localStorage.setItem('focusSessions', JSON.stringify(sorted));
+                            } catch (_) {}
+                        }
+                        
+                        // Update user state with the merged, superior data
+                        setUser({ 
+                            ...firebaseUser, 
+                            ...data, 
+                            treesPlanted:  selfHealedTrees,
+                            totalFocusTime: targetFocusTime,
+                            sessionsCount: selfHealedSessions
+                        });
 
                         // Update missing profile info if needed
                         if (!data.name || !data.email || !data.photoURL) {
@@ -45,29 +112,6 @@ export const AuthProvider = ({ children }) => {
                                 email: data.email || firebaseUser.email || '',
                                 photoURL: data.photoURL || firebaseUser.photoURL || '',
                             }, { merge: true });
-                        }
-
-                        // BIDIRECTIONAL SYNC (Laptop <=> PC)
-                        const localSessions = JSON.parse(localStorage.getItem('focusSessions') || '[]');
-                        const localFocusSeconds = parseInt(localStorage.getItem('focusSeconds') || '0');
-                        const localTrees = localSessions.filter(s => s.mode === 'pomodoro').length;
-
-                        const cloudTrees = Number(data.treesPlanted || 0);
-                        const cloudFocusSeconds = Number(data.totalFocusTime || 0);
-                        const cloudSessions = Number(data.sessionsCount || 0);
-
-                        // 1. Device is ahead -> Push to Cloud
-                        if (localTrees > cloudTrees || localFocusSeconds > cloudFocusSeconds) {
-                            await setDoc(userDocRef, {
-                                treesPlanted: Math.max(localTrees, cloudTrees),
-                                sessionsCount: Math.max(localSessions.length, cloudSessions),
-                                totalFocusTime: Math.max(localFocusSeconds, cloudFocusSeconds),
-                            }, { merge: true });
-                        } 
-                        // 2. Cloud is ahead -> Pull to Device
-                        else if (cloudTrees > localTrees || cloudFocusSeconds > localFocusSeconds) {
-                            localStorage.setItem('focusSeconds', cloudFocusSeconds.toString());
-                            // This ensures the local UI eventually catches up to the cloud rankings
                         }
                     } else {
                         // CRITICAL: If they exist in Auth but NOT Firestore, create the doc now
@@ -81,7 +125,7 @@ export const AuthProvider = ({ children }) => {
                             photoURL: firebaseUser.photoURL || '',
                             createdAt: new Date().toISOString(),
                             totalFocusTime: localFocusSeconds,
-                            treesPlanted: localSessions.filter(s => s.mode === 'pomodoro').length,
+                            treesPlanted: localSessions.filter(s => s.mode === 'pomodoro' || s.mode === 'stopwatch').length,
                             sessionsCount: localSessions.length,
                         }, { merge: true });
                     }
@@ -101,13 +145,22 @@ export const AuthProvider = ({ children }) => {
         const result = await createUserWithEmailAndPassword(auth, email, password);
         await updateProfile(result.user, { displayName: name });
         try {
+            // CRITICAL: use merge:true so a re-registration never overwrites
+            // an existing document that may already have trees/sessions data.
             await setDoc(doc(db, 'users', result.user.uid), {
                 name, email,
                 createdAt: new Date().toISOString(),
-                totalFocusTime: 0,
-                treesPlanted: 0,
-                sessionsCount: 0,
-            });
+                // Only set these to 0 if they don't already exist in the document
+                // merge:true ensures pre-existing values are NOT overwritten
+            }, { merge: true });
+            // Separately, initialize stats ONLY if they're missing (won't reduce)
+            const snap = await getDoc(doc(db, 'users', result.user.uid));
+            const existing = snap.exists() ? snap.data() : {};
+            if (!('treesPlanted' in existing)) {
+                await setDoc(doc(db, 'users', result.user.uid), {
+                    totalFocusTime: 0, treesPlanted: 0, sessionsCount: 0,
+                }, { merge: true });
+            }
         } catch (_) {}
         return result.user;
     };
@@ -132,16 +185,30 @@ export const AuthProvider = ({ children }) => {
         const result = await signInWithPopup(auth, googleProvider);
         const firebaseUser = result.user;
 
-        // Upsert Firestore document — only write fields that are missing
+        // Only create/write if missing, to prevent overwriting existing stats
         try {
-            await setDoc(doc(db, 'users', firebaseUser.uid), {
-                name: firebaseUser.displayName || 'Anonymous',
-                email: firebaseUser.email || '',
-                photoURL: firebaseUser.photoURL || '',
-                createdAt: new Date().toISOString(),
-                totalFocusTime: 0,
-                treesPlanted: 0,
-            }, { merge: true }); // merge: true keeps existing treesPlanted intact
+            const userDocRef = doc(db, 'users', firebaseUser.uid);
+            const snap = await getDoc(userDocRef);
+            if (!snap.exists()) {
+                await setDoc(userDocRef, {
+                    name: firebaseUser.displayName || 'Anonymous',
+                    email: firebaseUser.email || '',
+                    photoURL: firebaseUser.photoURL || '',
+                    createdAt: new Date().toISOString(),
+                    totalFocusTime: 0,
+                    treesPlanted: 0,
+                    sessionsCount: 0,
+                });
+            } else {
+                const data = snap.data();
+                if (!data.name || !data.email || !data.photoURL) {
+                    await setDoc(userDocRef, {
+                        name: data.name || firebaseUser.displayName || 'Anonymous',
+                        email: data.email || firebaseUser.email || '',
+                        photoURL: data.photoURL || firebaseUser.photoURL || '',
+                    }, { merge: true });
+                }
+            }
         } catch (_) {}
 
         return firebaseUser;
@@ -151,15 +218,19 @@ export const AuthProvider = ({ children }) => {
         const result = await signInAnonymously(auth);
         await updateProfile(result.user, { displayName: name });
         try {
-            await setDoc(doc(db, 'users', result.user.uid), {
-                name: name,
-                email: 'Guest',
-                createdAt: new Date().toISOString(),
-                totalFocusTime: 0,
-                treesPlanted: 0,
-                sessionsCount: 0,
-                isGuest: true,
-            }, { merge: true });
+            const userDocRef = doc(db, 'users', result.user.uid);
+            const snap = await getDoc(userDocRef);
+            if (!snap.exists()) {
+                await setDoc(userDocRef, {
+                    name: name,
+                    email: 'Guest',
+                    createdAt: new Date().toISOString(),
+                    totalFocusTime: 0,
+                    treesPlanted: 0,
+                    sessionsCount: 0,
+                    isGuest: true,
+                });
+            }
         } catch (_) {}
         return result.user;
     };

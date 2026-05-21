@@ -9,7 +9,7 @@ import {
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../context/ToastContext';
 import { db } from '../services/firebase';
-import { collection, onSnapshot, deleteDoc, doc, setDoc, serverTimestamp, query, orderBy, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, deleteDoc, doc, setDoc, serverTimestamp, query, orderBy, updateDoc, getDocs, getDoc } from 'firebase/firestore';
 
 // Coloured avatar (same helper as Profile / Leaderboard)
 const Avatar = ({ photoURL, name, size = 32 }) => {
@@ -58,8 +58,13 @@ const Admin = () => {
     const [feedbackLoading, setFeedbackLoading] = useState(true);
     
     // Inactive User States
-    const [inactiveFilter, setInactiveFilter] = useState('all'); // 'all', '0time', '7days', '30days'
+    const [inactiveFilter, setInactiveFilter] = useState('all');
     const [pruning, setPruning] = useState(false);
+
+    // Manual stat editor state
+    const [editingUser, setEditingUser] = useState(null); // { id, trees, sessions, focus }
+    const [savingEdit, setSavingEdit] = useState(false);
+
 
     const isAdmin = user && (
         ADMIN_EMAILS.includes(user.email) ||
@@ -162,6 +167,110 @@ const Admin = () => {
             setUsers(prev => prev.filter(u => u.id !== uid));
         } catch (e) { console.error(e); }
         finally { setDeleting(null); setConfirmDelete(null); }
+    };
+
+    // ── Manual Stat Edit ────────────────────────────────────────────
+    const handleSaveEdit = async () => {
+        if (!editingUser) return;
+        setSavingEdit(true);
+        try {
+            const { id, trees, sessions, focus } = editingUser;
+            await setDoc(doc(db, 'users', id), {
+                treesPlanted:  Number(trees),
+                sessionsCount: Number(sessions),
+                totalFocusTime: Number(focus),
+            }, { merge: true });
+            showToast(`✅ Stats updated successfully!`, 'success');
+            setEditingUser(null);
+        } catch (e) {
+            console.error(e);
+            showToast('❌ Failed to update stats. Check Firestore rules.', 'error');
+        } finally {
+            setSavingEdit(false);
+        }
+    };
+
+    // ── Bulk Session-Based Restore ───────────────────────────────────
+    // Known minimum values from admin memory (before the bug struck).
+    // These are the floor values — we always use MAX(current, sessionArray, knownMin)
+    const KNOWN_MINIMUMS = {
+        'aUM5MbUprIb9BGhinpGRnBzDUxz2': { trees: 91,  sessions: 91,  name: 'Jawaan Santh' },
+        'YwqS4ZT0ucMvx71uQ6Ks6uFg3ad2': { trees: 93,  sessions: 93,  name: '🤓' },
+        '3FsshOMatiS4cMYJ1xHwzhXWwG73': { trees: 83,  sessions: 83,  name: 'Ishanvi Arora' },
+        '4ujQcHuLYqgMpE9CRlwlvOa2a4A2': { trees: 200, sessions: 200, name: 'Nerdy' },
+    };
+
+    const [bulkRestorePreview, setBulkRestorePreview] = useState(null); // array of changes to apply
+    const [bulkRestoring, setBulkRestoring] = useState(false);
+    const [bulkRestoreRunning, setBulkRestoreRunning] = useState(false);
+    const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0 });
+
+    const handlePreviewBulkRestore = async () => {
+        setBulkRestoring(true);
+        try {
+            const allSnap = await getDocs(collection(db, 'users'));
+            const changes = [];
+
+            for (const d of allSnap.docs) {
+                const data = d.data();
+                const sessions = data.sessions || [];
+                const treesFromArr = sessions.filter(s => s.mode === 'pomodoro' || s.mode === 'stopwatch').length;
+                const sessionsFromArr = sessions.length;
+
+                const currentTrees    = Number(data.treesPlanted  || 0);
+                const currentSessions = Number(data.sessionsCount || 0);
+                const currentFocus    = Number(data.totalFocusTime || 0);
+
+                const known = KNOWN_MINIMUMS[d.id] || {};
+                const targetTrees    = Math.max(currentTrees,    treesFromArr,    known.trees    || 0);
+                const targetSessions = Math.max(currentSessions, sessionsFromArr, known.sessions || 0);
+
+                if (targetTrees > currentTrees || targetSessions > currentSessions) {
+                    changes.push({
+                        id: d.id,
+                        name: data.name || 'Anonymous',
+                        currentTrees, targetTrees,
+                        currentSessions, targetSessions,
+                        currentFocus,
+                        treesFromArr, sessionsFromArr,
+                        knownMin: known,
+                    });
+                }
+            }
+
+            changes.sort((a, b) => (b.targetTrees - b.currentTrees) - (a.targetTrees - a.currentTrees));
+            setBulkRestorePreview(changes);
+        } catch (e) {
+            console.error(e);
+            showToast('❌ Failed to fetch data for preview.', 'error');
+        } finally {
+            setBulkRestoring(false);
+        }
+    };
+
+    const handleConfirmBulkRestore = async () => {
+        if (!bulkRestorePreview || bulkRestorePreview.length === 0) return;
+        setBulkRestoreRunning(true);
+        setBulkProgress({ done: 0, total: bulkRestorePreview.length });
+        let successCount = 0;
+        try {
+            for (const change of bulkRestorePreview) {
+                await setDoc(doc(db, 'users', change.id), {
+                    treesPlanted:  change.targetTrees,
+                    sessionsCount: change.targetSessions,
+                }, { merge: true });
+                successCount++;
+                setBulkProgress(prev => ({ ...prev, done: successCount }));
+            }
+            showToast(`🌳 Bulk restore complete! Fixed ${successCount} users.`, 'success');
+            setBulkRestorePreview(null);
+        } catch (e) {
+            console.error(e);
+            showToast(`❌ Failed after ${successCount} updates. Try again.`, 'error');
+        } finally {
+            setBulkRestoreRunning(false);
+            setBulkProgress({ done: 0, total: 0 });
+        }
     };
 
     const getMillis = (ts) => {
@@ -405,6 +514,173 @@ const Admin = () => {
                 </div>
             </motion.div>
 
+
+            {/* ── Bulk Session History Restore Panel ───────────────────────── */}
+            <motion.div variants={item} className="glass p-8 rounded-[2.5rem] border border-emerald-500/20 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-72 h-72 bg-emerald-500/5 blur-[100px] rounded-full pointer-events-none" />
+
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6">
+                    <div className="p-3 bg-emerald-500/10 rounded-2xl shrink-0"><TreePine size={22} className="text-emerald-400" /></div>
+                    <div className="flex-1">
+                        <h3 className="text-xl font-black">Restore <span className="text-emerald-400">Session History</span></h3>
+                        <p className="text-text-muted text-[10px] uppercase tracking-widest font-bold mt-0.5">
+                            Recalculates trees from each user's session array + known correct minimums
+                        </p>
+                    </div>
+                    <button
+                        onClick={handlePreviewBulkRestore}
+                        disabled={bulkRestoring || bulkRestoreRunning}
+                        className="px-6 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl shadow-emerald-500/20 disabled:opacity-50 shrink-0 flex items-center gap-2"
+                    >
+                        {bulkRestoring ? (
+                            <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Scanning...</>
+                        ) : '🔍 Preview Restore for All Users'}
+                    </button>
+                </div>
+
+                {/* Known minimums badge list */}
+                <div className="flex flex-wrap gap-2 mb-4">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-text-muted/60 self-center">Known Floors:</span>
+                    {[
+                        { name: 'Jawaan', min: 91 },
+                        { name: '🤓', min: 93 },
+                        { name: 'Ishanvi', min: 83 },
+                        { name: 'Nerdy', min: 200 },
+                    ].map(b => (
+                        <span key={b.name} className="text-[10px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-xl font-black">
+                            {b.name}: {b.min} trees
+                        </span>
+                    ))}
+                </div>
+
+                {/* Preview Table */}
+                <AnimatePresence>
+                    {bulkRestorePreview && (
+                        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                            {bulkRestorePreview.length === 0 ? (
+                                <div className="text-center py-8">
+                                    <p className="text-emerald-400 font-black text-sm">✅ All users already have correct stats!</p>
+                                    <p className="text-text-muted text-xs mt-1">No changes needed.</p>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="rounded-2xl border border-white/8 overflow-hidden mb-4">
+                                        {/* Table header */}
+                                        <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-3 px-5 py-3 bg-white/3 border-b border-white/5">
+                                            {['User', 'Current Trees', 'Arr Trees', 'Min Floor', 'Final Trees'].map(h => (
+                                                <span key={h} className="text-[9px] font-black uppercase tracking-widest text-text-muted">{h}</span>
+                                            ))}
+                                        </div>
+                                        <div className="divide-y divide-white/5 max-h-72 overflow-y-auto">
+                                            {bulkRestorePreview.map(c => {
+                                                const gain = c.targetTrees - c.currentTrees;
+                                                return (
+                                                    <div key={c.id} className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-3 px-5 py-3 items-center hover:bg-white/3 transition-all">
+                                                        <div>
+                                                            <p className="text-sm font-bold text-white truncate">{c.name}</p>
+                                                            <p className="text-[9px] text-text-muted truncate">{c.id.slice(0, 12)}…</p>
+                                                        </div>
+                                                        <p className="text-sm font-bold text-red-400">{c.currentTrees}</p>
+                                                        <p className="text-sm font-bold text-yellow-400">{c.treesFromArr}</p>
+                                                        <p className="text-sm font-bold text-brand">{c.knownMin?.trees || '—'}</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-sm font-black text-emerald-400">{c.targetTrees}</p>
+                                                            <span className="text-[9px] bg-emerald-500/15 text-emerald-400 px-1.5 py-0.5 rounded-lg font-black">+{gain}</span>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                                        <div className="flex-1">
+                                            <p className="text-white font-black text-sm">{bulkRestorePreview.length} users need correction</p>
+                                            <p className="text-text-muted text-xs">This will only INCREASE values — no data will be lost.</p>
+                                        </div>
+                                        {bulkRestoreRunning ? (
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-4 h-4 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                                                <p className="text-emerald-400 font-black text-sm">{bulkProgress.done}/{bulkProgress.total} updated…</p>
+                                            </div>
+                                        ) : (
+                                            <div className="flex gap-3">
+                                                <button
+                                                    onClick={handleConfirmBulkRestore}
+                                                    className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl shadow-emerald-500/20"
+                                                >
+                                                    🌳 Confirm & Restore All
+                                                </button>
+                                                <button
+                                                    onClick={() => setBulkRestorePreview(null)}
+                                                    className="px-6 py-3 bg-white/5 border border-white/10 text-text-muted hover:text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
+                            )}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </motion.div>
+
+            {/* ── Manual Stat Editor Modal ────────────────────────────────── */}
+            <AnimatePresence>
+                {editingUser && (
+                    <motion.div
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl"
+                        onClick={() => setEditingUser(null)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+                            onClick={e => e.stopPropagation()}
+                            className="bg-[#0f172a] border border-white/10 w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl"
+                        >
+                            <h3 className="font-black text-xl mb-1">Edit <span className="text-brand">User Stats</span></h3>
+                            <p className="text-text-muted text-xs mb-6 uppercase tracking-widest font-bold">Direct Firestore Override</p>
+
+                            <div className="space-y-4">
+                                {[
+                                    { label: '🌳 Trees Planted', key: 'trees' },
+                                    { label: '⚡ Sessions Count', key: 'sessions' },
+                                    { label: '⏱ Total Focus (seconds)', key: 'focus' },
+                                ].map(({ label, key }) => (
+                                    <div key={key}>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-text-muted ml-1 mb-1 block">{label}</label>
+                                        <input
+                                            type="number"
+                                            value={editingUser[key]}
+                                            onChange={e => setEditingUser(prev => ({ ...prev, [key]: e.target.value }))}
+                                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold text-white focus:border-brand/50 transition-all outline-none"
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="flex gap-3 mt-6">
+                                <button
+                                    onClick={handleSaveEdit}
+                                    disabled={savingEdit}
+                                    className="flex-1 bg-brand text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-brand/90 transition-all disabled:opacity-50"
+                                >
+                                    {savingEdit ? 'Saving...' : 'Save to Firestore'}
+                                </button>
+                                <button
+                                    onClick={() => setEditingUser(null)}
+                                    className="px-6 py-4 bg-white/5 border border-white/10 text-text-muted hover:text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* Table */}
             <motion.div variants={item} className="glass rounded-[2rem] border border-white/10 overflow-hidden">
                 {/* Table header */}
@@ -479,8 +755,22 @@ const Admin = () => {
                                     {/* Focus time */}
                                     <p className="text-sm font-bold text-brand">{fmtTime(u.totalFocusTime)}</p>
 
-                                    {/* Delete */}
-                                    <div>
+                                    {/* Actions: Edit + Delete */}
+                                    <div className="flex items-center gap-1">
+                                        {/* Edit Stats button */}
+                                        <button
+                                            onClick={() => setEditingUser({
+                                                id: u.id,
+                                                name: u.name,
+                                                trees: u.treesPlanted || 0,
+                                                sessions: u.sessionsCount || 0,
+                                                focus: u.totalFocusTime || 0
+                                            })}
+                                            className="p-2 rounded-xl text-text-muted hover:text-brand hover:bg-brand/10 transition-all"
+                                            title="Edit Stats"
+                                        >
+                                            <Zap size={14} />
+                                        </button>
                                         {confirmDelete === u.id ? (
                                             <div className="flex items-center gap-1">
                                                 <button onClick={() => handleDelete(u.id)} disabled={deleting === u.id}

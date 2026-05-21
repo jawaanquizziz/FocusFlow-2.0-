@@ -71,8 +71,8 @@ const Reports = () => {
     };
 
     const totalHours = (totalFocusSeconds / 3600).toFixed(1);
-    const pomodoroSessions = sessions.filter(s => s.mode === 'pomodoro');
-    const treesPlanted = pomodoroSessions.length; 
+    const pomodoroSessions = sessions.filter(s => s.mode === 'pomodoro' || s.mode === 'stopwatch');
+    const treesPlanted = user?.treesPlanted || pomodoroSessions.length; 
     
     // 1. Weekly Data for Trend Chart
     const weeklyTrendData = (() => {
@@ -82,7 +82,7 @@ const Reports = () => {
             d.setDate(d.getDate() - i);
             const dateStr = d.toLocaleDateString('en-CA');
             const dayLabel = d.toLocaleDateString('en-US', { weekday: 'short' });
-            const daySessions = sessions.filter(s => s.date === dateStr && s.mode === 'pomodoro');
+            const daySessions = sessions.filter(s => s.date === dateStr && (s.mode === 'pomodoro' || s.mode === 'stopwatch'));
             const minutes = Math.round(daySessions.reduce((acc, s) => acc + (s.duration || 0), 0) / 60);
             days.push({ name: dayLabel, minutes });
         }

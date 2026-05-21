@@ -56,24 +56,31 @@ export const AuthProvider = ({ children }) => {
                         const cloudTreesFromArr = cloudSessionsArray.filter(
                             s => s.mode === 'pomodoro' || s.mode === 'stopwatch'
                         ).length;
-                        const selfHealedTrees    = Math.max(targetTrees,        cloudTreesFromArr);
-                        const selfHealedSessions = Math.max(targetSessionsCount, cloudSessionsArray.length);
+                        let finalTrees    = Math.max(targetTrees,        cloudTreesFromArr);
+                        let finalSessions = Math.max(targetSessionsCount, cloudSessionsArray.length);
+                        let finalFocusTime = targetFocusTime;
+
+                        // ADMIN FORCED OVERRIDE: permanently fix Jawaan's stats
+                        if (firebaseUser.uid === 'aUM5MbUprIb9BGhinpGRnBzDUxz2') {
+                            finalTrees = Math.max(finalTrees, 107);
+                            finalSessions = Math.max(finalSessions, 107);
+                        }
 
                         const needsFirestoreUpdate =
-                            selfHealedTrees    > Number(data.treesPlanted  || 0) ||
-                            targetFocusTime    > Number(data.totalFocusTime || 0) ||
-                            selfHealedSessions > Number(data.sessionsCount  || 0);
+                            finalTrees    > Number(data.treesPlanted  || 0) ||
+                            finalFocusTime    > Number(data.totalFocusTime || 0) ||
+                            finalSessions > Number(data.sessionsCount  || 0);
 
                         if (needsFirestoreUpdate) {
                             await setDoc(userDocRef, {
-                                treesPlanted:  selfHealedTrees,
-                                sessionsCount: selfHealedSessions,
-                                totalFocusTime: targetFocusTime,
+                                treesPlanted:  finalTrees,
+                                sessionsCount: finalSessions,
+                                totalFocusTime: finalFocusTime,
                             }, { merge: true });
                         }
 
                         // Ensure local storage matches the superior cloud data
-                        localStorage.setItem('focusSeconds', targetFocusTime.toString());
+                        localStorage.setItem('focusSeconds', finalFocusTime.toString());
 
                         // Merge cloud sessions into localStorage so ForestGrove shows all trees
                         // even on a fresh device/browser (reuse cloudSessionsArray from above)
@@ -100,9 +107,9 @@ export const AuthProvider = ({ children }) => {
                         setUser({ 
                             ...firebaseUser, 
                             ...data, 
-                            treesPlanted:  selfHealedTrees,
-                            totalFocusTime: targetFocusTime,
-                            sessionsCount: selfHealedSessions
+                            treesPlanted:  finalTrees,
+                            totalFocusTime: finalFocusTime,
+                            sessionsCount: finalSessions
                         });
 
                         // Update missing profile info if needed

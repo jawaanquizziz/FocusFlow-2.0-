@@ -163,9 +163,25 @@ const Admin = () => {
     const handleDelete = async (uid) => {
         setDeleting(uid);
         try {
-            await deleteDoc(doc(db, 'users', uid));
-            setUsers(prev => prev.filter(u => u.id !== uid));
-        } catch (e) { console.error(e); }
+            // Securely call our Vercel serverless function to completely wipe the user from Auth & Firestore
+            const response = await fetch('/api/delete-user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ uid })
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                setUsers(prev => prev.filter(u => u.id !== uid));
+                showToast('✅ User permanently deleted from system.', 'success');
+            } else {
+                showToast(`❌ Failed: ${result.error}`, 'error');
+            }
+        } catch (e) { 
+            console.error(e);
+            showToast('❌ Backend API error. Ensure Vercel environment variables are set.', 'error');
+        }
         finally { setDeleting(null); setConfirmDelete(null); }
     };
 

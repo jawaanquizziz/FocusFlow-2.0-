@@ -17,7 +17,12 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null && request.auth.uid == userId;
-      allow update: if request.auth != null && request.auth.uid == userId && countersNeverDecrease();
+      // Regular users: can only update their own doc AND counters must never decrease
+      // Admin (jawaan25fcrit): can update ANY user's doc freely (for the admin restore panel)
+      allow update: if request.auth != null && (
+        (request.auth.uid == userId && countersNeverDecrease()) ||
+        request.auth.token.email == 'jawaan25fcrit@gmail.com'
+      );
     }
 
     match /settings/{doc} {

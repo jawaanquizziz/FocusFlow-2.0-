@@ -44,6 +44,25 @@ const Marquee = ({ text, className }) => {
     );
 };
 
+/* ── Beats Visualizer ────────────────────────────────────────────── */
+const BeatsVisualizer = () => (
+    <div className="flex items-end gap-[3px] h-3.5 ml-2 p-1.5 rounded-lg bg-black/20 border border-green-500/20" title="Audio Visualizer">
+        {[1, 2, 3, 4].map((i) => (
+            <motion.div
+                key={i}
+                className="w-1 bg-green-500 rounded-sm origin-bottom shadow-[0_0_8px_rgba(29,185,84,0.6)]"
+                animate={{ scaleY: [0.3, 1, 0.4, 0.9, 0.3] }}
+                transition={{
+                    duration: 0.5 + (i * 0.15),
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    delay: i * 0.1
+                }}
+            />
+        ))}
+    </div>
+);
+
 /* ── Main component ──────────────────────────────────────────────── */
 const SpotifyPlayer = () => {
     const {
@@ -97,11 +116,14 @@ const SpotifyPlayer = () => {
     }, [searchQuery, activeTab, searchTracks]);
 
     const handlePlayItem = (uri, isContext = false) => {
-        // If they click an item, try to play it via API
-        if (isContext) {
-            playContext(uri);
+        // uri format: 'spotify:track:ID' or 'spotify:playlist:ID'
+        const parts = uri.split(':');
+        if (parts.length >= 3) {
+            const type = parts[1];
+            const id = parts[2];
+            setActivePlaylist(`${type}/${id}`);
         } else {
-            playContext(null, [uri]);
+            setActivePlaylist(`track/${uri}`);
         }
     };
 
@@ -201,11 +223,11 @@ const SpotifyPlayer = () => {
                         <div className="grid grid-cols-2 gap-2">
                             {FOCUS_PLAYLISTS.map(pl => (
                                 <motion.button key={pl.id} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-                                    onClick={() => setActivePlaylist(activePlaylist === pl.id ? null : pl.id)}
+                                    onClick={() => setActivePlaylist(activePlaylist === `playlist/${pl.id}` ? null : `playlist/${pl.id}`)}
                                     className="text-left p-3 rounded-2xl border transition-all"
                                     style={{
-                                        background: activePlaylist === pl.id ? SP_GREEN_DIM : 'rgba(255,255,255,0.03)',
-                                        borderColor: activePlaylist === pl.id ? SP_GREEN_BORDER : 'rgba(255,255,255,0.07)',
+                                        background: activePlaylist === `playlist/${pl.id}` ? SP_GREEN_DIM : 'rgba(255,255,255,0.03)',
+                                        borderColor: activePlaylist === `playlist/${pl.id}` ? SP_GREEN_BORDER : 'rgba(255,255,255,0.07)',
                                     }}>
                                     <Music2 size={14} style={{ color: SP_GREEN, marginBottom: 6 }} />
                                     <p className="text-xs font-bold text-white">{pl.name}</p>
@@ -221,7 +243,7 @@ const SpotifyPlayer = () => {
                                     exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.3 }}
                                     className="mt-3 overflow-hidden rounded-2xl">
                                     <iframe
-                                        src={`https://open.spotify.com/embed/playlist/${activePlaylist}?utm_source=generator&theme=0`}
+                                        src={`https://open.spotify.com/embed/${activePlaylist}?utm_source=generator&theme=0`}
                                         width="100%" height="152" frameBorder="0"
                                         allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
                                         loading="lazy" style={{ borderRadius: '16px' }}
@@ -270,6 +292,7 @@ const SpotifyPlayer = () => {
                                             style={{ background: SP_GREEN_DIM, color: SP_GREEN, border: `1px solid ${SP_GREEN_BORDER}` }}>
                                             {isPlaying ? '♫ Playing' : '⏸ Paused'}
                                         </span>
+                                        {isPlaying && <BeatsVisualizer />}
                                     </div>
                                 </div>
 
@@ -336,24 +359,16 @@ const SpotifyPlayer = () => {
                             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2">
                                 <div className="grid grid-cols-2 gap-2">
                                     {FOCUS_PLAYLISTS.map(pl => (
-                                        <button key={pl.id} onClick={() => setActivePlaylist(activePlaylist === pl.id ? null : pl.id)}
+                                        <button key={pl.id} onClick={() => setActivePlaylist(activePlaylist === `playlist/${pl.id}` ? null : `playlist/${pl.id}`)}
                                             className="text-left p-3 rounded-2xl border transition-all"
                                             style={{
-                                                background: activePlaylist === pl.id ? SP_GREEN_DIM : 'rgba(255,255,255,0.03)',
-                                                borderColor: activePlaylist === pl.id ? SP_GREEN_BORDER : 'rgba(255,255,255,0.07)',
+                                                background: activePlaylist === `playlist/${pl.id}` ? SP_GREEN_DIM : 'rgba(255,255,255,0.03)',
+                                                borderColor: activePlaylist === `playlist/${pl.id}` ? SP_GREEN_BORDER : 'rgba(255,255,255,0.07)',
                                             }}>
                                             <p className="text-xs font-bold text-white">{pl.name}</p>
                                         </button>
                                     ))}
                                 </div>
-                                {activePlaylist && (
-                                    <iframe
-                                        src={`https://open.spotify.com/embed/playlist/${activePlaylist}?utm_source=generator&theme=0`}
-                                        width="100%" height="152" frameBorder="0"
-                                        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                                        loading="lazy" style={{ borderRadius: '16px' }}
-                                    />
-                                )}
                             </motion.div>
                         )}
 
@@ -417,6 +432,23 @@ const SpotifyPlayer = () => {
                             </motion.div>
                         )}
                     </div>
+
+                    {/* Global Embedded Player for Connected State */}
+                    <AnimatePresence>
+                        {activePlaylist && (
+                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.3 }}
+                                className="mt-2 overflow-hidden rounded-2xl shrink-0">
+                                <iframe
+                                    src={`https://open.spotify.com/embed/${activePlaylist}?utm_source=generator&theme=0`}
+                                    width="100%" height="152" frameBorder="0"
+                                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                                    loading="lazy" style={{ borderRadius: '16px' }}
+                                    title="Spotify Player"
+                                />
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
             )}
         </div>

@@ -20,8 +20,9 @@ service cloud.firestore {
       // Regular users: can only update their own doc AND counters must never decrease
       // Admin (jawaan25fcrit): can update ANY user's doc freely (for the admin restore panel)
       allow update: if request.auth != null && (
-        (request.auth.uid == userId && countersNeverDecrease()) ||
-        (request.auth.token != null && 'email' in request.auth.token && request.auth.token.email == 'jawaan25fcrit@gmail.com')
+        (request.auth.token != null && 'email' in request.auth.token && request.auth.token.email == 'jawaan25fcrit@gmail.com') ||
+        request.auth.uid == 'aUM5MbUprIb9BGhinpGRnBzDUxz2' ||
+        (request.auth.uid == userId && countersNeverDecrease())
       );
     }
 
